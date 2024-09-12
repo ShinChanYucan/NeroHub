@@ -1,3 +1,7 @@
 {
-  "key": "7BSB6djMk49rUQzUvqkBIvOGh0XsSPMX"
+  "key": "7BSB6djMk49rUQzUvqkBIvOGh0XsSPMX",
+  "allowedNumbers": [
+    "+629999999",
+    "+627777777"
+  ]
 }
