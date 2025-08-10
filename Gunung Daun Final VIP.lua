@@ -548,12 +548,6 @@ end)()
 -- === Character Respawn Handler ===
 player.CharacterAdded:Connect(function(char)
     task.wait(0.6)
-    
-    -- Re-apply jump button if enabled
-    if state.EnableJump then
-        createJumpButton()
-    end
-end)
 
     -- Re-apply speed settings
     if state.speedHackEnabled then
