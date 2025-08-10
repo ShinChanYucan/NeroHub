@@ -20,7 +20,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 -- State management
 local state = {
-    EnableJump = true,
+    EnableJump = false,
     JumpPower = 50,
     running = false,
     infJump = false,

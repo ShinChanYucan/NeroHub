@@ -24,6 +24,8 @@ local noclipEnabled = false
 
 -- State object for better organization
 local state = {
+    EnableJump = false,
+    JumpPower = 50,
     SpeedHack = false,
     WalkSpeed = 16,
     NormalSpeed = 16,
@@ -598,7 +600,41 @@ local function createAdminTitle()
     billboard.Parent = head
     adminGui = billboard
 end
+-- === Mobile Jump Button ===
+local function removeJumpButton()
+    if jumpGui then pcall(function() jumpGui:Destroy() end) end
+    jumpGui, jumpButton = nil, nil
+end
 
+local function createJumpButton()
+    removeJumpButton()
+    jumpGui = Instance.new("ScreenGui")
+    jumpGui.Name = "NERO_JumpGui"
+    jumpGui.ResetOnSpawn = false
+    jumpGui.Parent = playerGui
+
+    jumpButton = Instance.new("ImageButton")
+    jumpButton.Name = "JumpBtn"
+    jumpButton.Size = UDim2.new(0, 90, 0, 90)
+    jumpButton.Position = UDim2.new(1, -100, 1, -120)
+    jumpButton.AnchorPoint = Vector2.new(1, 1)
+    jumpButton.BackgroundTransparency = 1
+    jumpButton.Image = "rbxassetid://3926305904"
+    jumpButton.Parent = jumpGui
+
+    jumpButton.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if h then
+                pcall(function()
+                    h.UseJumpPower = true
+                    h.JumpPower = state.JumpPower or 50
+                    h:ChangeState(Enum.HumanoidStateType.Jumping)
+                end)
+            end
+        end
+    end)
+end
 -- == Rayfield UI ==
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -641,6 +677,41 @@ ManualTab:CreateButton({ Name = "Teleport Finish", Callback = function() safeTel
 
 -- Main Features Tab
 local MainTab = Window:CreateTab("Main", 4483362458)
+MainTab:CreateToggle({
+    Name = "Enable Jump (Mobile)",
+    CurrentValue = state.EnableJump,
+    Callback = function(v)
+        state.EnableJump = v
+        if v then 
+            createJumpButton() 
+        else 
+            removeJumpButton() 
+        end
+        saveConfig() -- Note: saveConfig() belum ada di script ini
+    end
+})
+
+-- LOKASI 4: Jump Power Input (Baris 668-684)
+MainTab:CreateInput({
+    Name = "Jump Power (number)",
+    PlaceholderText = tostring(state.JumpPower),
+    Callback = function(val)
+        local n = tonumber(val)
+        if n and n > 0 then
+            state.JumpPower = n
+            pcall(function()
+                local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+                if h then
+                    h.UseJumpPower = true
+                    h.JumpPower = n
+                end
+            end)
+            Rayfield:Notify({Title = "Jump", Content = "JumpPower set to "..tostring(n), Duration = 2})
+        else
+            Rayfield:Notify({Title = "Jump", Content = "Input invalid", Duration = 2})
+        end
+    end
+})
 MainTab:CreateToggle({ Name = "Infinity Jump", CurrentValue = false, Callback = function(v) infJump = v end })
 MainTab:CreateToggle({ Name = "ESP Player", CurrentValue = false, Callback = function(v) setESP(v) end })
 MainTab:CreateToggle({ Name = "Noclip", CurrentValue = false, Callback = function(v) noclipEnabled = v end })
