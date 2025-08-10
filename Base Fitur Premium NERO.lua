@@ -550,25 +550,6 @@ local Window = Rayfield:CreateWindow({
     ConfigurationSaving = { Enabled = false }
 })
 
-local ManualTab = Window:CreateTab("Manual TP", 4483362458)
-
-for i, cpName in ipairs(checkpointOrder) do
-    ManualTab:CreateButton({
-        Name = "Teleport to " .. cpName,
-        Callback = function()
-            local cframe = checkpoints[cpName]
-            if cframe then
-                teleportCharacter(player.Character, cframe)
-                Rayfield:Notify({
-                    Title="Teleport", 
-                    Content="Teleported to " .. cpName, 
-                    Duration=2
-                })
-            end
-        end
-    })
-end
-
 local MainTab = Window:CreateTab("Main", 4483362458)
 MainTab:CreateToggle({
     Name = "Infinity Jump",
