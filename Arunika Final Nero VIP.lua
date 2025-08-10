@@ -21,13 +21,9 @@ local running = false
 local infJump = false
 local espEnabled = false
 local noclipEnabled = false
-local flinging = false
-local flingDied = nil
 
 -- State object for better organization
 local state = {
-flingEnabled = false,
-flingDied = nil,
     EnableJump = false,
     JumpPower = 50,
     SpeedHack = false,
@@ -56,162 +52,6 @@ local checkpoints = {
 local finishCFrame = CFrame.new(262.496887, 324.952942, 718.184692)
 
 -- == Helpers ==
-local function getRoot(char)
-    if not char then return nil end
-    return char:FindFirstChild('HumanoidRootPart') or char:FindFirstChild('Torso') or char:FindFirstChild('UpperTorso')
-end
-
-local function randomString()
-    local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-    local result = ""
-    for i = 1, 10 do
-        local rand = math.random(1, #chars)
-        result = result .. chars:sub(rand, rand)
-    end
-    return result
-end
--- === IY FLING FUNCTIONS ===
-
-local function startFling()
-    flinging = false
-    
-    local character = player.Character
-    if not character then return false end
-    
-    -- Set custom physical properties untuk semua parts
-    for _, child in pairs(character:GetDescendants()) do
-        if child:IsA("BasePart") then
-            child.CustomPhysicalProperties = PhysicalProperties.new(100, 0.3, 0.5)
-        end
-    end
-    
-    -- Enable noclip
-    state.noclipEnabled = true
-    
-    task.wait(0.1)
-    
-    local root = getRoot(character)
-    if not root then return false end
-    
-    -- Create BodyAngularVelocity
-    local bambam = Instance.new("BodyAngularVelocity")
-    bambam.Name = randomString()
-    bambam.Parent = root
-    bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-    bambam.MaxTorque = Vector3.new(0, math.huge, 0)
-    bambam.P = math.huge
-    
-    -- Set up character parts
-    local charParts = character:GetChildren()
-    for i, v in next, charParts do
-        if v:IsA("BasePart") then
-            v.CanCollide = false
-            v.Massless = true
-            v.Velocity = Vector3.new(0, 0, 0)
-        end
-    end
-    
-    flinging = true
-    -- Connect death handler
-    local function flingDiedF()
-        stopFling()
-    end
-    
-    local humanoid = character:FindFirstChildOfClass('Humanoid')
-    if humanoid then
-        flingDied = humanoid.Died:Connect(flingDiedF)
-    end
-    
-    -- Fling loop
-    task.spawn(function()
-        while flinging do
-            if bambam and bambam.Parent then
-                bambam.AngularVelocity = Vector3.new(0, 99999, 0)
-                task.wait(0.2)
-                if bambam and bambam.Parent then
-                    bambam.AngularVelocity = Vector3.new(0, 0, 0)
-                end
-                task.wait(0.1)
-            else
-                break
-            end
-        end
-    end)
-    
-    return true
-end
-
-local function stopFling()
-    -- Disable noclip
-    state.noclipEnabled = false
-    
-    -- Disconnect death handler
-    if flingDied then
-        flingDied:Disconnect()
-        flingDied = nil
-    end
-    
-    flinging = false
-    task.wait(0.1)
-    local character = player.Character
-    if not character then return end
-    
-    local root = getRoot(character)
-    if not root then return end
-    
-    -- Remove BodyAngularVelocity
-    for i, v in pairs(root:GetChildren()) do
-        if v.ClassName == 'BodyAngularVelocity' then
-            v:Destroy()
-        end
-    end
-    
-    -- Reset physical properties
-    for _, child in pairs(character:GetDescendants()) do
-        if child.ClassName == "Part" or child.ClassName == "MeshPart" then
-            child.CustomPhysicalProperties = PhysicalProperties.new(0.7, 0.3, 0.5)
-        end
-    end
-    
-    -- Reset parts
-    for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = true
-            part.Massless = false
-        end
-    end
-end
-
--- Fling specific player (teleport to them then fling)
-local function flingTargetPlayer(targetName)
-    local targetPlayer = findPlayerByName(targetName)
-    if not targetPlayer then
-        return false, "Player not found"
-    end
-    
-    if not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        return false, "Target not spawned"
-    end
-    
-    local myChar = player.Character
-    if not (myChar and myChar:FindFirstChild("HumanoidRootPart")) then
-        return false, "You are not spawned"
-    end
-    
-    -- Teleport to target
-    local targetPos = targetPlayer.Character.HumanoidRootPart.Position
-    teleportCharacter(myChar, targetPos + Vector3.new(2, 0, 0))
-    
-    task.wait(0.3)
-    
-    -- Start fling
-    local success = startFling()
-    if success then
-        return true, "Flinging " .. targetPlayer.DisplayName .. "! Stay close to them!"
-    else
-        return false, "Failed to start fling"
-    end
-end
 local function getHumanoidChar(plr)
     if not plr or not plr.Character then return nil end
     return plr.Character:FindFirstChildOfClass("Humanoid") and plr.Character or nil
@@ -722,10 +562,7 @@ player.CharacterAdded:Connect(function(char)
         end)
     end
 end)
-if state.flingEnabled then
-    state.flingEnabled = false
-    flinging = false
-end
+
 -- == Fake Admin Title ==
 local function removeAdminTitle()
     if adminGui and adminGui.Parent then
@@ -994,63 +831,6 @@ SpecialTab:CreateToggle({
     end
 })
 
-local MovementTab = Window:CreateTab("IY Fling System", 4483362458)
-MovementTab:CreateToggle({
-    Name = "🌪️ IY Fling (Spin Mode)",
-    CurrentValue = false,
-    Callback = function(v)
-        state.flingEnabled = v
-        if v then
-            local success = startFling()
-            if success then
-                Rayfield:Notify({
-                    Title="IY Fling", 
-                    Content="Fling started! You are now spinning. Walk into players to fling them!", 
-                    Duration=4
-                })
-            else
-                state.flingEnabled = false
-                Rayfield:Notify({Title="Fling Error", Content="Failed to start fling", Duration=2})
-            end
-        else
-            stopFling()
-            Rayfield:Notify({Title="IY Fling", Content="Fling stopped", Duration=2})
-        end
-    end
-})
-
-MovementTab:CreateInput({
-    Name = "Target Player Name",
-    PlaceholderText = "Username or Display Name",
-    Callback = function(text)
-        state.flingTarget = text
-    end
-})
-MovementTab:CreateButton({
-    Name = "🎯 TP + Fling Target",
-    Callback = function()
-        if state.flingTarget and state.flingTarget ~= "" then
-            local success, message = flingTargetPlayer(state.flingTarget)
-            if success then
-                state.flingEnabled = true
-                Rayfield:Notify({Title="Target Fling", Content=message, Duration=4})
-            else
-                Rayfield:Notify({Title="Target Fling Failed", Content=message, Duration=3})
-            end
-        else
-            Rayfield:Notify({Title="Error", Content="Enter a target player name first", Duration=2})
-        end
-    end
-})
-
-MovementTab:CreateButton({
-    Name = "🛑 Stop Fling",
-    Callback = function()
-        state.flingEnabled = false
-        stopFling()
-        Rayfield:Notify({Title="Fling", Content="Fling stopped and effects cleaned", Duration=2})
-    end
-})
 -- Cleanup on script end
 game:GetService("Players").PlayerRemoving:Connect(function(plr)
     if plr == player then
@@ -1058,12 +838,6 @@ game:GetService("Players").PlayerRemoving:Connect(function(plr)
         FlyModule.unmobilefly(player)
         removeFlyButtons()
         removeAdminTitle()
-    end
-end)
-
-game:GetService("Players").PlayerRemoving:Connect(function(plr)
-    if plr == player then
-        stopFling()
     end
 end)
 
