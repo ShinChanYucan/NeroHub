@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local state = {
     running = false,
@@ -820,6 +821,218 @@ SpecialTab:CreateToggle({
         end
     end
 })
+
+-- ===== AntiCheat Control (GUI) =====
+-- Paste langsung setelah `local SpecialTab = Window:CreateTab("Special", ...)`
+
+-- RemoteEvent name (server optional)
+local CONFIG_EVENT_NAME = "AntiHackConfig" -- RemoteEvent di ReplicatedStorage (server should create)
+local CONFIG_MODULE_NAME = "Configuration"  -- optional module in ReplicatedStorage for local fallback
+
+-- Default values (sesuaikan)
+local DEFAULTS = {
+    WalkSpeedLimit = 30,
+    WalkSpeedThreshold = 2,
+    JumpHeightLimit = 50,
+    JumpHeightThreshold = 2,
+    MaximumFlags = 6,
+    KickPlayer = true
+}
+
+-- UI state
+local state = {
+    mode = "off", -- "off", "friendly", "bypass"
+    WalkSpeedLimit = tostring(DEFAULTS.WalkSpeedLimit),
+    WalkSpeedThreshold = tostring(DEFAULTS.WalkSpeedThreshold),
+    JumpHeightLimit = tostring(DEFAULTS.JumpHeightLimit),
+    JumpHeightThreshold = tostring(DEFAULTS.JumpHeightThreshold),
+    MaximumFlags = tostring(DEFAULTS.MaximumFlags),
+    KickPlayer = DEFAULTS.KickPlayer
+}
+
+-- helper: notify
+local function notify(title, text)
+    if typeof(Rayfield) == "table" and Rayfield.Notify then
+        Rayfield:Notify({Title = title, Content = text, Duration = 3})
+    else
+        -- fallback: simple warn
+        warn(title .. ": " .. text)
+    end
+end
+
+-- helper: fire remote or local require fallback
+local function applyConfigPayload(payload)
+    local evt = ReplicatedStorage:FindFirstChild(CONFIG_EVENT_NAME)
+    if evt and evt:IsA("RemoteEvent") then
+        evt:FireServer(payload)
+        return true
+    end
+
+    -- fallback: try to require a Configuration Module in ReplicatedStorage (client-side only)
+    local mod = ReplicatedStorage:FindFirstChild(CONFIG_MODULE_NAME)
+    if mod and mod:IsA("ModuleScript") then
+        local ok, cfg = pcall(function() return require(mod) end)
+        if ok and cfg and cfg.Numbers and cfg.Booleans then
+            for k,v in pairs(payload.Numbers or {}) do
+                if cfg.Numbers[k] ~= nil then cfg.Numbers[k] = v end
+            end
+            for k,v in pairs(payload.Booleans or {}) do
+                if cfg.Booleans[k] ~= nil then cfg.Booleans[k] = v end
+            end
+            notify("AntiHack", "Applied config locally (client).")
+            return true
+        end
+    end
+
+    notify("AntiHack", "No server RemoteEvent found. Config attempted locally only.")
+    return false
+end
+
+-- UI: inputs (text inputs, not sliders)
+SpecialTab:CreateInput({
+    Name = "WalkSpeedLimit (number)",
+    Placeholder = state.WalkSpeedLimit,
+    RemoveTextAfterFocusLost = false,
+    Callback = function(val)
+        state.WalkSpeedLimit = tostring(val)
+    end
+})
+
+SpecialTab:CreateInput({
+    Name = "WalkSpeedThreshold (number)",
+    Placeholder = state.WalkSpeedThreshold,
+    RemoveTextAfterFocusLost = false,
+    Callback = function(val)
+        state.WalkSpeedThreshold = tostring(val)
+    end
+})
+
+SpecialTab:CreateInput({
+    Name = "JumpHeightLimit (number)",
+    Placeholder = state.JumpHeightLimit,
+    RemoveTextAfterFocusLost = false,
+    Callback = function(val)
+        state.JumpHeightLimit = tostring(val)
+    end
+})
+
+SpecialTab:CreateInput({
+    Name = "JumpHeightThreshold (number)",
+    Placeholder = state.JumpHeightThreshold,
+    RemoveTextAfterFocusLost = false,
+    Callback = function(val)
+        state.JumpHeightThreshold = tostring(val)
+    end
+})
+
+SpecialTab:CreateInput({
+    Name = "MaximumFlags (number)",
+    Placeholder = state.MaximumFlags,
+    RemoveTextAfterFocusLost = false,
+    Callback = function(val)
+        state.MaximumFlags = tostring(val)
+    end
+})
+
+-- Toggle KickPlayer
+SpecialTab:CreateToggle({
+    Name = "KickPlayer (toggle)",
+    CurrentValue = state.KickPlayer,
+    Flag = "AntiHackKickToggle", -- optional flag name
+    Callback = function(val)
+        state.KickPlayer = val
+    end
+})
+
+-- Friendly Mode: apply limits (does NOT override server unless server listens)
+SpecialTab:CreateButton({
+    Name = "Enable Friendly Mode (apply)",
+    Callback = function()
+        -- build payload
+        local walk = tonumber(state.WalkSpeedLimit) or DEFAULTS.WalkSpeedLimit
+        local wth = tonumber(state.WalkSpeedThreshold) or DEFAULTS.WalkSpeedThreshold
+        local jump = tonumber(state.JumpHeightLimit) or DEFAULTS.JumpHeightLimit
+        local jth = tonumber(state.JumpHeightThreshold) or DEFAULTS.JumpHeightThreshold
+        local maxf = tonumber(state.MaximumFlags) or DEFAULTS.MaximumFlags
+
+        local payload = {
+            Numbers = {
+                WalkSpeedLimit = walk,
+                WalkSpeedThreshold = wth,
+                JumpHeightLimit = jump,
+                JunpHeightThreshold = jth,
+                MaximumFlags = maxf,
+            },
+            Booleans = {
+                KickPlayer = false -- friendly disables kick
+            }
+        }
+
+        -- switch mode
+        state.mode = "friendly"
+        applyConfigPayload(payload)
+        notify("AntiHack", "Friendly Mode requested (server/local).")
+    end
+})
+
+SpecialTab:CreateButton({
+    Name = "Enable Bypass Mode (override checks)",
+    Callback = function()
+        -- Bypass: set very permissive values and disable kick
+        local walk = tonumber(state.WalkSpeedLimit) or DEFAULTS.WalkSpeedLimit
+        local jump = tonumber(state.JumpHeightLimit) or DEFAULTS.JumpHeightLimit
+
+        local payload = {
+            Numbers = {
+                WalkSpeedLimit = math.max(99999, walk),
+                WalkSpeedThreshold = math.max(9999, math.floor(walk * 0.5)),
+                JumpHeightLimit = math.max(99999, jump),
+                JunpHeightThreshold = math.max(9999, math.floor(jump * 0.5)),
+                MaximumFlags = 999999,
+            },
+            Booleans = {
+                KickPlayer = false
+            }
+        }
+
+        state.mode = "bypass"
+        applyConfigPayload(payload)
+        notify("AntiHack", "Bypass Mode requested (server/local). Use ONLY on YOUR server.")
+    end
+})
+
+SpecialTab:CreateButton({
+    Name = "Restore Defaults",
+    Callback = function()
+        local payload = {
+            Numbers = {
+                WalkSpeedLimit = DEFAULTS.WalkSpeedLimit,
+                WalkSpeedThreshold = DEFAULTS.WalkSpeedThreshold,
+                JumpHeightLimit = DEFAULTS.JumpHeightLimit,
+                JunpHeightThreshold = DEFAULTS.JumpHeightThreshold,
+                MaximumFlags = DEFAULTS.MaximumFlags,
+            },
+            Booleans = {
+                KickPlayer = DEFAULTS.KickPlayer
+            }
+        }
+        state.mode = "off"
+        applyConfigPayload(payload)
+        notify("AntiHack", "Restored defaults (requested).")
+    end
+})
+
+-- Optional: receive confirmation from server (if server fires back)
+local evt = ReplicatedStorage:FindFirstChild(CONFIG_EVENT_NAME)
+if evt and evt:IsA("RemoteEvent") then
+    evt.OnClientEvent:Connect(function(response)
+        if type(response) == "table" and response.status then
+            notify("AntiHack", tostring(response.message or "Server responded."))
+        end
+    end)
+end
+
+-- ===== End GUI patch =====
 
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
