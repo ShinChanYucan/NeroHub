@@ -549,6 +549,12 @@ end)()
 player.CharacterAdded:Connect(function(char)
     task.wait(0.6)
     
+    -- Re-apply jump button if enabled
+    if state.EnableJump then
+        createJumpButton()
+    end
+end)
+
     -- Re-apply speed settings
     if state.speedHackEnabled then
         task.wait(0.2)
@@ -717,11 +723,16 @@ MainTab:CreateToggle({
     CurrentValue = state.EnableJump,
     Callback = function(v)
         state.EnableJump = v
-        if v then createJumpButton() else removeJumpButton() end
-        saveConfig()
+        if v then 
+            createJumpButton() 
+        else 
+            removeJumpButton() 
+        end
+        saveConfig() -- Note: saveConfig() belum ada di script ini
     end
 })
 
+-- LOKASI 4: Jump Power Input (Baris 668-684)
 MainTab:CreateInput({
     Name = "Jump Power (number)",
     PlaceholderText = tostring(state.JumpPower),
@@ -736,7 +747,6 @@ MainTab:CreateInput({
                     h.JumpPower = n
                 end
             end)
-            saveConfig()
             Rayfield:Notify({Title = "Jump", Content = "JumpPower set to "..tostring(n), Duration = 2})
         else
             Rayfield:Notify({Title = "Jump", Content = "Input invalid", Duration = 2})
