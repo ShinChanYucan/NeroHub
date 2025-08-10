@@ -1212,19 +1212,7 @@ task.delay(1, function()
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = state.normalWalkSpeed
     end
-    -- === Apply settings on spawn / initial ===
-if state.EnableJump then pcall(createJumpButton) end
-
-player.CharacterAdded:Connect(function()
-    task.wait(0.6)
-    local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    if h then
-        pcall(function()
-            if state.SpeedHack then h.WalkSpeed = state.WalkSpeed end
-            h.UseJumpPower = true
-            h.JumpPower = state.JumpPower
-        end)
-    end
+    
     -- Welcome notification
     Rayfield:Notify({
         Title="🛡️ NERO Ultimate v2.1", 
