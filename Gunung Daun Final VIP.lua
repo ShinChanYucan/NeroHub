@@ -20,6 +20,8 @@ local playerGui = player:WaitForChild("PlayerGui")
 
 -- State management
 local state = {
+    EnableJump = true,
+    JumpPower = 50,
     running = false,
     infJump = false,
     espEnabled = false,
@@ -620,6 +622,41 @@ local function createAdminTitle()
     adminGui = billboard
 end
 
+-- === Mobile Jump Button ===
+local function removeJumpButton()
+    if jumpGui then pcall(function() jumpGui:Destroy() end) end
+    jumpGui, jumpButton = nil, nil
+end
+
+local function createJumpButton()
+    removeJumpButton()
+    jumpGui = Instance.new("ScreenGui")
+    jumpGui.Name = "NERO_JumpGui"
+    jumpGui.ResetOnSpawn = false
+    jumpGui.Parent = playerGui
+
+    jumpButton = Instance.new("ImageButton")
+    jumpButton.Name = "JumpBtn"
+    jumpButton.Size = UDim2.new(0, 90, 0, 90)
+    jumpButton.Position = UDim2.new(1, -100, 1, -120)
+    jumpButton.AnchorPoint = Vector2.new(1, 1)
+    jumpButton.BackgroundTransparency = 1
+    jumpButton.Image = "rbxassetid://3926305904"
+    jumpButton.Parent = jumpGui
+
+    jumpButton.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if h then
+                pcall(function()
+                    h.UseJumpPower = true
+                    h.JumpPower = state.JumpPower or 50
+                    h:ChangeState(Enum.HumanoidStateType.Jumping)
+                end)
+            end
+        end
+    end)
+end
 -- == Rayfield UI Setup ==
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
@@ -675,6 +712,37 @@ end
 
 -- Main Features Tab
 local MainTab = Window:CreateTab("Main", 4483362458)
+MainTab:CreateToggle({
+    Name = "Enable Jump (Mobile)",
+    CurrentValue = state.EnableJump,
+    Callback = function(v)
+        state.EnableJump = v
+        if v then createJumpButton() else removeJumpButton() end
+        saveConfig()
+    end
+})
+
+MainTab:CreateInput({
+    Name = "Jump Power (number)",
+    PlaceholderText = tostring(state.JumpPower),
+    Callback = function(val)
+        local n = tonumber(val)
+        if n and n > 0 then
+            state.JumpPower = n
+            pcall(function()
+                local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+                if h then
+                    h.UseJumpPower = true
+                    h.JumpPower = n
+                end
+            end)
+            saveConfig()
+            Rayfield:Notify({Title = "Jump", Content = "JumpPower set to "..tostring(n), Duration = 2})
+        else
+            Rayfield:Notify({Title = "Jump", Content = "Input invalid", Duration = 2})
+        end
+    end
+})
 MainTab:CreateToggle({
     Name = "Infinity Jump",
     CurrentValue = false,
@@ -1144,7 +1212,19 @@ task.delay(1, function()
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = state.normalWalkSpeed
     end
-    
+    -- === Apply settings on spawn / initial ===
+if state.EnableJump then pcall(createJumpButton) end
+
+player.CharacterAdded:Connect(function()
+    task.wait(0.6)
+    local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if h then
+        pcall(function()
+            if state.SpeedHack then h.WalkSpeed = state.WalkSpeed end
+            h.UseJumpPower = true
+            h.JumpPower = state.JumpPower
+        end)
+    end
     -- Welcome notification
     Rayfield:Notify({
         Title="🛡️ NERO Ultimate v2.1", 
