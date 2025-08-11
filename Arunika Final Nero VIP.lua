@@ -142,7 +142,7 @@ local function loopSummit()
         if not running then break end
         local t = 0
         while running and (not player.Character or not player.Character:FindFirstChild("HumanoidRootPart")) and t < 40 do
-            task.wait(0.5); t = t + 0.5
+            task.wait(0.5)
         end
     end
 end
