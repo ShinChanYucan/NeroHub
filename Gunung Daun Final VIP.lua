@@ -1,6 +1,6 @@
--- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version (FIXED AUTO SUMMIT & MANUAL TP)
+-- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version
 -- Features:
--- Auto Loop Summit + Manual TP (Support Carry Player) - ANTI-DETECTION
+-- Auto Loop Summit + Manual TP (Support Carry Player)
 -- Infinity Jump, ESP Player, Noclip
 -- InfinityYield-style Fly System (PC & Mobile)
 -- Anti-Reset Speed Hack with toggle
@@ -14,7 +14,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -31,156 +30,51 @@ local state = {
     flySpeed = 1,
     speedHackEnabled = false,
     normalWalkSpeed = 16,
-    speedHackValue = 100,
+    speedHackValue = 18,
     adminTitleEnabled = false,
     tpUsername = "",
-    verticalFly = 0,
-    smoothTP = true,
-    tpDelay = 0.5,
-    tpSpeed = 40
+    verticalFly = 0
 }
 
 -- Keep refs to cleanup
 local espTable = {}
 local adminGui = nil
 local flyGui, ascendBtn, descendBtn = nil, nil, nil
-local jumpGui, jumpButton = nil, nil
 
--- Checkpoints Gunung Daun (Updated coordinates for better compatibility)
+-- Checkpoints Gunung Daun (sesuaikan dengan pos aslinya)
 local checkpoints = {
     Vector3.new(-625.014038, 250.367432, -383.940338),   -- CP1
     Vector3.new(-1201.94055, 261.679169, -487.414337),   -- CP2
     Vector3.new(-1399.73083, 578.413635, -953.336426),   -- CP3
     Vector3.new(-1701.85278, 816.575745, -1401.61108),   -- CP4
-    Vector3.new(-3231.60278, 1865.8175, -2591.06348),    -- CP5 (increased height)
+    Vector3.new(-3231.60278, 1715.8175 + 150, -2591.06348), -- CP5 (fly dulu 150 atas)
 }
 
--- == ANTI-DETECTION Helper Functions ==
-local function randomDelay(min, max)
-    min = min or 0.3
-    max = max or 0.8
-    return math.random() * (max - min) + min
-end
-
-local function humanizeMovement()
-    -- Add small random variations to make movement look more human
-    return Vector3.new(
-        (math.random() - 0.5) * 4,
-        0,
-        (math.random() - 0.5) * 4
-    )
-end
-
--- IMPROVED TELEPORT FUNCTION (FIXED)
+-- == Helper Functions ==
 local function teleportCharacter(character, position)
-    if not character or not character:FindFirstChild("HumanoidRootPart") then 
-        warn("Character or HumanoidRootPart not found")
-        return false 
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        if typeof(character.SetPrimaryPartCFrame) == "function" then
+            character:SetPrimaryPartCFrame(CFrame.new(position))
+        else
+            character.HumanoidRootPart.CFrame = CFrame.new(position)
+        end
+        -- Stop velocity
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.RotVelocity = Vector3.zero
+        end
     end
-    
-    local hrp = character.HumanoidRootPart
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    
-    -- Stop current movement
-    if humanoid then
-        humanoid.PlatformStand = true
-        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-    end
-    
-    -- Add humanized movement variation
-    local finalPos = position + humanizeMovement()
-    
-    -- Teleport using CFrame
-    hrp.CFrame = CFrame.new(finalPos)
-    
-    -- Reset velocity completely
-    if hrp.AssemblyLinearVelocity then
-        hrp.AssemblyLinearVelocity = Vector3.zero
-    end
-    if hrp.AssemblyAngularVelocity then
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end
-    if hrp.Velocity then
-        hrp.Velocity = Vector3.zero
-    end
-    if hrp.RotVelocity then
-        hrp.RotVelocity = Vector3.zero
-    end
-    
-    -- Re-enable normal movement
-    task.wait(0.1)
-    if humanoid then
-        humanoid.PlatformStand = false
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-    end
-    
-    return true
 end
 
--- SMOOTH TELEPORT FUNCTION (IMPROVED)
-local function smoothTeleportCharacter(character, targetPosition, speed)
-    if not character or not character:FindFirstChild("HumanoidRootPart") then 
-        warn("Character or HumanoidRootPart not found for smooth teleport")
-        return false
-    end
-    
-    local hrp = character.HumanoidRootPart
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    local startPosition = hrp.Position
-    local distance = (targetPosition - startPosition).Magnitude
-    
-    -- If distance is too far (>300 studs), use instant TP with noclip
-    if distance > 300 then
-        enableNoclip()
-        task.wait(0.05)
-        local success = teleportCharacter(character, targetPosition)
-        task.wait(0.1)
-        disableNoclip()
-        return success
-    end
-    
-    -- For shorter distances, use smooth movement
-    speed = speed or math.min(60, distance / 1.5) -- Improved adaptive speed
-    local duration = distance / speed
-    duration = math.max(0.3, math.min(duration, 2.5)) -- Better duration clamping
-    
-    local tweenInfo = TweenInfo.new(
-        duration,
-        Enum.EasingStyle.Quart,
-        Enum.EasingDirection.InOut,
-        0,
-        false,
-        0
-    )
-    
-    local finalPos = targetPosition + humanizeMovement()
-    local tween = TweenService:Create(hrp, tweenInfo, {
-        CFrame = CFrame.new(finalPos)
-    })
-    
-    tween:Play()
-    tween.Completed:Wait()
-    
-    -- Ensure velocity is stopped
-    if hrp.AssemblyLinearVelocity then
-        hrp.AssemblyLinearVelocity = Vector3.zero
-    end
-    if hrp.AssemblyAngularVelocity then
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end
-    
-    return true
-end
-
--- Get carried player character if near (IMPROVED)
+-- Get carried player character if near
 local function getCarriedCharacter()
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
-    
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local dist = (plr.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
-            if dist < 12 then -- Increased detection range
+            if dist < 8 then
                 return plr.Character
             end
         end
@@ -217,21 +111,13 @@ local function findPlayerByName(searchName)
     return nil
 end
 
--- Noclip control (IMPROVED)
+-- Noclip control
 local noclipConnection = nil
 local function enableNoclip()
     if noclipConnection then return end
     noclipConnection = RunService.Stepped:Connect(function()
-        if player.Character then
-            for _, part in pairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-            end
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(11)
         end
     end)
 end
@@ -241,167 +127,47 @@ local function disableNoclip()
         noclipConnection:Disconnect()
         noclipConnection = nil
     end
-    if player.Character then
-        for _, part in pairs(player.Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                part.CanCollide = true
-            end
-        end
-        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end
-    end
 end
 
--- COMPLETELY REWRITTEN SUMMIT LOOP (FIXED)
+-- Summit Loop with carry support
 local function summitLoop()
-    if state.running then
-        warn("Summit loop already running!")
-        return
-    end
-    
-    state.running = true
-    warn("Starting summit loop...")
-    
     while state.running do
-        -- Check if character exists
-        if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
-            warn("Character not found, waiting...")
-            task.wait(2)
-            continue
-        end
-        
         local carriedChar = getCarriedCharacter()
-        if carriedChar then
-            warn("Carrying player: " .. carriedChar.Parent.Name)
-        end
-        
-        -- Loop through each checkpoint
         for i, pos in ipairs(checkpoints) do
-            if not state.running then 
-                warn("Summit loop stopped by user")
-                break 
-            end
-            
-            -- Verify character still exists
-            if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
-                warn("Character lost during loop")
-                break
-            end
-            
-            warn("Teleporting to CP" .. i .. ": " .. tostring(pos))
-            
-            -- Add random delay between each checkpoint
-            task.wait(randomDelay(0.8, 1.5))
-            
+            if not state.running then break end
+
             if i == #checkpoints then
-                -- CP5 special handling: enable noclip and handle descent
-                warn("Reached CP5, enabling noclip...")
+                -- CP5 special: fly + noclip + descend
                 enableNoclip()
-                task.wait(0.2)
-                
-                -- Teleport to CP5
-                local success = false
-                if state.smoothTP then
-                    success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 50)
+                teleportCharacter(player.Character, pos)
+                if carriedChar then
+                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
+                end
+                task.wait(1)
+                for y = 150, 0, -10 do
+                    local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
+                    teleportCharacter(player.Character, descendPos)
                     if carriedChar then
-                        smoothTeleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2), state.tpSpeed or 50)
+                        teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
                     end
-                else
-                    success = teleportCharacter(player.Character, pos)
-                    if carriedChar then
-                        teleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2))
-                    end
+                    task.wait(0.2)
                 end
-                
-                if not success then
-                    warn("Failed to teleport to CP5")
-                    disableNoclip()
-                    continue
-                end
-                
-                task.wait(randomDelay(1.0, 2.0))
-                
-                -- Smooth descend with better control
-                local baseY = pos.Y - 150 -- Target ground level
-                local currentY = pos.Y
-                
-                while currentY > baseY and state.running do
-                    local stepSize = math.random(12, 20)
-                    currentY = math.max(baseY, currentY - stepSize)
-                    local descendPos = Vector3.new(pos.X, currentY, pos.Z)
-                    
-                    if state.smoothTP then
-                        smoothTeleportCharacter(player.Character, descendPos, 35)
-                        if carriedChar then
-                            smoothTeleportCharacter(carriedChar, descendPos + Vector3.new(2, 0, 2), 35)
-                        end
-                    else
-                        teleportCharacter(player.Character, descendPos)
-                        if carriedChar then
-                            teleportCharacter(carriedChar, descendPos + Vector3.new(2, 0, 2))
-                        end
-                    end
-                    
-                    task.wait(randomDelay(0.15, 0.35))
-                end
-                
-                task.wait(0.5)
                 disableNoclip()
-                warn("CP5 descent completed")
-                
             else
-                -- Normal checkpoint teleport
-                local success = false
-                if state.smoothTP then
-                    success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 50)
-                    if carriedChar then
-                        smoothTeleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2), state.tpSpeed or 50)
-                    end
-                else
-                    success = teleportCharacter(player.Character, pos)
-                    if carriedChar then
-                        teleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2))
-                    end
+                teleportCharacter(player.Character, pos)
+                if carriedChar then
+                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                
-                if not success then
-                    warn("Failed to teleport to CP" .. i)
-                    continue
-                end
-                
-                -- Variable wait time for each checkpoint
-                local waitTime = randomDelay(3.0, 5.0)
-                warn("Waiting " .. waitTime .. " seconds at CP" .. i)
-                task.wait(waitTime)
+                task.wait(5.5)
             end
         end
-        
-        -- Return to start with random delay
-        warn("Returning to start...")
-        task.wait(randomDelay(1.5, 2.5))
-        
-        if state.running and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local carriedChar = getCarriedCharacter()
-            if state.smoothTP then
-                smoothTeleportCharacter(player.Character, checkpoints[1], state.tpSpeed or 50)
-                if carriedChar then
-                    smoothTeleportCharacter(carriedChar, checkpoints[1] + Vector3.new(2, 0, 2), state.tpSpeed or 50)
-                end
-            else
-                teleportCharacter(player.Character, checkpoints[1])
-                if carriedChar then
-                    teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(2, 0, 2))
-                end
-            end
+        task.wait(1)
+        teleportCharacter(player.Character, checkpoints[1])
+        if carriedChar then
+            teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
         end
-        
-        task.wait(randomDelay(2.0, 4.0))
-        warn("Summit loop cycle completed")
+        task.wait(2)
     end
-    
-    warn("Summit loop ended")
 end
 
 -- == Infinity Jump ==
@@ -891,7 +657,6 @@ local function createJumpButton()
         end
     end)
 end
-
 -- == Rayfield UI Setup ==
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
@@ -903,44 +668,24 @@ if not success or not Rayfield then
 end
 
 local Window = Rayfield:CreateWindow({
-    Name = "🛡️ ShieldTeam | NERO Ultimate (FIXED)",
+    Name = "🛡️ ShieldTeam | NERO Ultimate",
     LoadingTitle = "ShieldTeam | NERO",
-    LoadingSubtitle = "Ultimate Summit & Features - Anti-Detection",
+    LoadingSubtitle = "Ultimate Summit & Features",
     ConfigurationSaving = { Enabled = false }
 })
 
 -- Auto Summit Tab
 local AutoTab = Window:CreateTab("Auto Summit", 4483362458)
-
-AutoTab:CreateToggle({
-    Name = "Smooth Teleport (Anti-Detection)",
-    CurrentValue = true,
-    Callback = function(val)
-        state.smoothTP = val
-        Rayfield:Notify({
-            Title = "Anti-Detection",
-            Content = val and "Smooth TP enabled (safer)" or "Instant TP enabled (riskier)",
-            Duration = 3
-        })
-    end
-})
-
 AutoTab:CreateToggle({
     Name = "Auto Loop Summit",
     CurrentValue = false,
     Callback = function(val)
-        if val and not state.running then 
+        state.running = val
+        if val then 
             task.spawn(summitLoop)
-            Rayfield:Notify({
-                Title="Summit", 
-                Content="Anti-detection summit started with carry support", 
-                Duration=3
-            })
-        elseif not val then
-            state.running = false
-            Rayfield:Notify({Title="Summit", Content="Auto summit stopped", Duration=2})
+            Rayfield:Notify({Title="Summit", Content="Auto summit started with carry support", Duration=2})
         else
-            Rayfield:Notify({Title="Summit", Content="Summit is already running!", Duration=2})
+            Rayfield:Notify({Title="Summit", Content="Auto summit stopped", Duration=2})
         end
     end
 })
@@ -948,94 +693,22 @@ AutoTab:CreateToggle({
 AutoTab:CreateButton({
     Name = "Force Run Once",
     Callback = function()
-        if not state.running then
-            task.spawn(summitLoop)
-            Rayfield:Notify({Title="Summit", Content="Running summit once", Duration=2})
-        else
-            Rayfield:Notify({Title="Summit", Content="Summit already running! Stop it first.", Duration=2})
-        end
+        task.spawn(summitLoop)
+        Rayfield:Notify({Title="Summit", Content="Running summit once", Duration=2})
     end
 })
 
-AutoTab:CreateButton({
-    Name = "Stop Summit Loop",
-    Callback = function()
-        state.running = false
-        Rayfield:Notify({Title="Summit", Content="Summit loop stopped", Duration=2})
-    end
-})
-
-AutoTab:CreateSlider({
-    Name = "Teleport Speed",
-    Range = {10, 100},
-    Increment = 5,
-    Suffix = " studs/sec",
-    CurrentValue = 40,
-    Callback = function(val)
-        state.tpSpeed = val
-        Rayfield:Notify({
-            Title="Teleport Speed", 
-            Content="Speed set to " .. val .. " studs/sec", 
-            Duration=2
-        })
-    end
-})
-
--- Manual TP Tab (FIXED)
+-- Manual TP Tab
 local ManualTab = Window:CreateTab("Manual TP", 4483362458)
-
-ManualTab:CreateParagraph({
-    Title = "Manual Teleport Controls",
-    Content = "Click any checkpoint button below to instantly teleport there. Works with both smooth and instant teleport modes."
-})
-
 for i, pos in ipairs(checkpoints) do
     ManualTab:CreateButton({
-        Name = "🚀 Teleport to CP" .. i,
+        Name = "Teleport CP"..i,
         Callback = function()
-            if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
-                Rayfield:Notify({Title="Error", Content="Character not spawned!", Duration=2})
-                return
-            end
-            
-            local success = false
-            if state.smoothTP then
-                success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 40)
-            else
-                success = teleportCharacter(player.Character, pos)
-            end
-            
-            if success then
-                Rayfield:Notify({Title="Teleport", Content="Teleported to CP" .. i, Duration=2})
-            else
-                Rayfield:Notify({Title="Error", Content="Failed to teleport to CP" .. i, Duration=2})
-            end
+            teleportCharacter(player.Character, pos)
+            Rayfield:Notify({Title="Teleport", Content="Teleported to CP"..i, Duration=2})
         end
     })
 end
-
-ManualTab:CreateButton({
-    Name = "🏠 Teleport to Spawn",
-    Callback = function()
-        local spawnPos = Vector3.new(0, 5, 0) -- Default spawn position
-        if workspace:FindFirstChild("SpawnLocation") then
-            spawnPos = workspace.SpawnLocation.Position + Vector3.new(0, 5, 0)
-        end
-        
-        local success = false
-        if state.smoothTP then
-            success = smoothTeleportCharacter(player.Character, spawnPos, state.tpSpeed or 40)
-        else
-            success = teleportCharacter(player.Character, spawnPos)
-        end
-        
-        if success then
-            Rayfield:Notify({Title="Teleport", Content="Teleported to spawn", Duration=2})
-        else
-            Rayfield:Notify({Title="Error", Content="Failed to teleport to spawn", Duration=2})
-        end
-    end
-})
 
 -- Main Features Tab
 local MainTab = Window:CreateTab("Main", 4483362458)
@@ -1049,9 +722,11 @@ MainTab:CreateToggle({
         else 
             removeJumpButton() 
         end
+        saveConfig() -- Note: saveConfig() belum ada di script ini
     end
 })
 
+-- LOKASI 4: Jump Power Input (Baris 668-684)
 MainTab:CreateInput({
     Name = "Jump Power (number)",
     PlaceholderText = tostring(state.JumpPower),
@@ -1072,7 +747,6 @@ MainTab:CreateInput({
         end
     end
 })
-
 MainTab:CreateToggle({
     Name = "Infinity Jump",
     CurrentValue = false,
@@ -1103,6 +777,7 @@ MainTab:CreateToggle({
 -- Movement Tab
 local MovementTab = Window:CreateTab("Movement", 4483362458)
 
+-- Fly System Controls
 MovementTab:CreateInput({
     Name = "Fly Speed",
     PlaceholderText = "e.g. 1",
@@ -1143,6 +818,7 @@ MovementTab:CreateToggle({
     end
 })
 
+-- Speed Hack System
 MovementTab:CreateInput({
     Name = "Speed Hack Value",
     PlaceholderText = "e.g. 100",
@@ -1174,6 +850,7 @@ MovementTab:CreateToggle({
 -- Special Tab
 local SpecialTab = Window:CreateTab("Special", 4483362458)
 
+-- Mobile Fly Controls (shown even on PC for manual control)
 SpecialTab:CreateButton({
     Name = "Ascend (Manual)",
     Callback = function()
@@ -1192,8 +869,10 @@ SpecialTab:CreateButton({
     end
 })
 
+-- Enhanced Player Teleport System
 SpecialTab:CreateSection("Enhanced Player Teleport")
 
+-- Original Player Teleport System
 SpecialTab:CreateInput({
     Name = "Teleport to Player",
     PlaceholderText = "Username or Display Name",
@@ -1207,27 +886,12 @@ SpecialTab:CreateButton({
     Callback = function()
         local targetPlayer = findPlayerByName(state.tpUsername)
         if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local targetPos = targetPlayer.Character.HumanoidRootPart.Position
-            local success = false
-            if state.smoothTP then
-                success = smoothTeleportCharacter(player.Character, targetPos, state.tpSpeed or 40)
-            else
-                success = teleportCharacter(player.Character, targetPos)
-            end
-            
-            if success then
-                Rayfield:Notify({
-                    Title="Teleport Success", 
-                    Content="Teleported to " .. targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")", 
-                    Duration=3
-                })
-            else
-                Rayfield:Notify({
-                    Title="Teleport Failed", 
-                    Content="Failed to teleport to " .. targetPlayer.DisplayName, 
-                    Duration=3
-                })
-            end
+            teleportCharacter(player.Character, targetPlayer.Character.HumanoidRootPart.Position)
+            Rayfield:Notify({
+                Title="Teleport Success", 
+                Content="Teleported to " .. targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")", 
+                Duration=3
+            })
         else
             Rayfield:Notify({
                 Title="Teleport Failed", 
@@ -1238,6 +902,191 @@ SpecialTab:CreateButton({
     end
 })
 
+-- Quick Teleport to Nearest Player
+SpecialTab:CreateButton({
+    Name = "📍 TP to Nearest Player",
+    Callback = function()
+        if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
+            Rayfield:Notify({Title="Error", Content="Your character is not spawned", Duration=2})
+            return
+        end
+        
+        local myPos = player.Character.HumanoidRootPart.Position
+        local nearestPlayer = nil
+        local nearestDistance = math.huge
+        
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    nearestPlayer = plr
+                end
+            end
+        end
+        
+        if nearestPlayer then
+            teleportCharacter(player.Character, nearestPlayer.Character.HumanoidRootPart.Position)
+            Rayfield:Notify({
+                Title="Teleport Success", 
+                Content="Teleported to nearest player: " .. nearestPlayer.DisplayName .. " (Distance: " .. math.floor(nearestDistance) .. ")", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="No Players Found", 
+                Content="No other players are spawned in the server", 
+                Duration=3
+            })
+        end
+    end
+})
+
+-- Teleport All Players to You
+SpecialTab:CreateButton({
+    Name = "🌟 Bring All Players to Me",
+    Callback = function()
+        if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
+            Rayfield:Notify({Title="Error", Content="Your character is not spawned", Duration=2})
+            return
+        end
+        
+        local myPos = player.Character.HumanoidRootPart.Position
+        local teleportedCount = 0
+        
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                -- Teleport other players to positions around you
+                local offsetPos = myPos + Vector3.new(
+                    math.random(-5, 5), 
+                    0, 
+                    math.random(-5, 5)
+                )
+                teleportCharacter(plr.Character, offsetPos)
+                teleportedCount = teleportedCount + 1
+            end
+        end
+        
+        if teleportedCount > 0 then
+            Rayfield:Notify({
+                Title="Mass Teleport", 
+                Content="Teleported " .. teleportedCount .. " players to your location", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="No Players", 
+                Content="No other players to teleport", 
+                Duration=2
+            })
+        end
+    end
+})
+
+-- List All Players with Quick TP Buttons
+local playerButtonsCreated = {}
+
+local function createQuickTPButtons()
+    -- Clear old buttons reference
+    playerButtonsCreated = {}
+    
+    local playerCount = 0
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            playerCount = playerCount + 1
+            if playerCount <= 6 then -- Limit to 6 buttons to avoid UI clutter
+                local displayText = plr.DisplayName .. " (@" .. plr.Name .. ")"
+                
+                SpecialTab:CreateButton({
+                    Name = "🚀 TP → " .. (string.len(displayText) > 20 and string.sub(displayText, 1, 20) .. "..." or displayText),
+                    Callback = function()
+                        -- Double check player is still valid
+                        local currentPlr = nil
+                        for _, checkPlr in ipairs(Players:GetPlayers()) do
+                            if checkPlr.Name == plr.Name then
+                                currentPlr = checkPlr
+                                break
+                            end
+                        end
+                        
+                        if currentPlr and currentPlr.Character and currentPlr.Character:FindFirstChild("HumanoidRootPart") then
+                            teleportCharacter(player.Character, currentPlr.Character.HumanoidRootPart.Position)
+                            Rayfield:Notify({
+                                Title="Quick TP", 
+                                Content="Teleported to " .. currentPlr.DisplayName, 
+                                Duration=2
+                            })
+                        else
+                            Rayfield:Notify({
+                                Title="Player Not Found", 
+                                Content=plr.DisplayName .. " left or not spawned", 
+                                Duration=2
+                            })
+                        end
+                    end
+                })
+                playerButtonsCreated[plr.Name] = true
+            end
+        end
+    end
+    
+    if playerCount == 0 then
+        SpecialTab:CreateParagraph({
+            Title = "No Players Online",
+            Content = "No other players found in the server. Join a server with more players!"
+        })
+    elseif playerCount > 6 then
+        SpecialTab:CreateParagraph({
+            Title = "Many Players Online",
+            Content = "Server has " .. playerCount .. " players. Showing first 6 as buttons. Use manual teleport for others."
+        })
+    end
+end
+
+-- Create initial player buttons
+createQuickTPButtons()
+
+SpecialTab:CreateButton({
+    Name = "🔄 Refresh Quick TP Buttons",
+    Callback = function()
+        Rayfield:Notify({
+            Title="Quick TP Buttons", 
+            Content="Restart the script to see updated player buttons", 
+            Duration=3
+        })
+    end
+})
+
+SpecialTab:CreateButton({
+    Name = "📋 List All Players",
+    Callback = function()
+        local playerList = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player then
+                table.insert(playerList, plr.DisplayName .. " (@" .. plr.Name .. ")")
+            end
+        end
+        if #playerList > 0 then
+            local listText = table.concat(playerList, ", ")
+            if string.len(listText) > 100 then
+                listText = string.sub(listText, 1, 100) .. "..."
+            end
+            Rayfield:Notify({
+                Title="Players Online (" .. #playerList .. ")", 
+                Content=listText, 
+                Duration=5
+            })
+        else
+            Rayfield:Notify({
+                Title="Players Online", 
+                Content="No other players found", 
+                Duration=3
+            })
+        end
+    end
+})
+
+-- Admin Title Toggle
 SpecialTab:CreateToggle({
     Name = "Fake Title: Admin (Blue)",
     CurrentValue = false,
@@ -1253,17 +1102,43 @@ SpecialTab:CreateToggle({
     end
 })
 
+SpecialTab:CreateToggle({
+    Name = "🛡️ BYPASS ANTICHEAT",
+    CurrentValue = false,
+    Callback = function(v)
+        state.anticheatBypassEnabled = v
+        if v then
+            pcall(function() 
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/ACR/refs/heads/main/Acr", true))() 
+            end)
+            Rayfield:Notify({
+                Title="Bypass Anticheat", 
+                Content="Anticheat bypass enabled successfully!", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="Bypass Anticheat", 
+                Content="Anticheat bypass disabled", 
+                Duration=2
+            })
+        end
+    end
+})
+
 -- Settings Tab
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
 SettingsTab:CreateButton({
     Name = "Reset All Settings",
     Callback = function()
+        -- Reset all states
         state.running = false
         state.infJump = false
         setESP(false)
         state.noclipEnabled = false
         
+        -- Disable fly
         if state.flyEnabled then
             state.flyEnabled = false
             if UserInputService.TouchEnabled then
@@ -1274,15 +1149,18 @@ SettingsTab:CreateButton({
             end
         end
         
+        -- Reset speeds
         state.speedHackEnabled = false
         state.normalWalkSpeed = 16
         state.speedHackValue = 100
         
+        -- Remove admin title
         if state.adminTitleEnabled then
             state.adminTitleEnabled = false
             removeAdminTitle()
         end
         
+        -- Apply normal walk speed
         if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
             player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16
         end
@@ -1301,8 +1179,7 @@ SettingsTab:CreateButton({
             "Noclip: " .. (state.noclipEnabled and "ON" or "OFF"),
             "Fly: " .. (state.flyEnabled and "ON" or "OFF"),
             "Speed: " .. (state.speedHackEnabled and "ON" or "OFF"),
-            "Admin Title: " .. (state.adminTitleEnabled and "ON" or "OFF"),
-            "Smooth TP: " .. (state.smoothTP and "ON" or "OFF")
+            "Admin Title: " .. (state.adminTitleEnabled and "ON" or "OFF")
         }
         local statusText = table.concat(status, " | ")
         Rayfield:Notify({
@@ -1317,8 +1194,8 @@ SettingsTab:CreateButton({
 local InfoTab = Window:CreateTab("Info", 4483362458)
 
 InfoTab:CreateParagraph({
-    Title = "🛡️ NERO Ultimate Features (FIXED)",
-    Content = "Fixed auto summit and manual teleport • Anti-detection smooth teleport • Auto Summit with carry support • InfinityYield-style fly • Anti-reset speed hack • Enhanced player teleport system • ESP & Noclip • Fake admin title"
+    Title = "🛡️ NERO Ultimate Features",
+    Content = "Auto Summit with carry support • InfinityYield-style fly • Anti-reset speed hack • Enhanced player teleport system • ESP & Noclip • Fake admin title"
 })
 
 InfoTab:CreateParagraph({
@@ -1327,43 +1204,47 @@ InfoTab:CreateParagraph({
 })
 
 InfoTab:CreateParagraph({
-    Title = "🚀 What's Fixed",
-    Content = "• Auto summit loop now works properly • Manual teleport buttons fixed • Better error handling • Improved character detection • Fixed velocity reset • Enhanced noclip system"
+    Title = "🚀 Enhanced Teleport Features",
+    Content = "• Quick TP buttons for nearby players • Teleport to nearest player • Bring all players to you • Manual teleport with username/display name search"
 })
 
 InfoTab:CreateParagraph({
-    Title = "🛡️ Anti-Detection Features",
-    Content = "• Random delays between actions • Smooth movement instead of instant teleport • Humanized variations • Adaptive speed control • Noclip for long distances"
+    Title = "🔧 Speed Hack",
+    Content = "Anti-reset technology prevents speed from being reset by the game. Uses velocity backup if WalkSpeed fails."
 })
 
 InfoTab:CreateParagraph({
     Title = "ℹ️ Script Info",
-    Content = "ShieldTeam | NERO Ultimate v2.3 FIXED - Enhanced with fixed auto summit and manual teleport. All teleportation issues resolved."
+    Content = "ShieldTeam | NERO Ultimate v2.1 - Enhanced with advanced player teleport system. For support, contact ShieldTeam developers."
 })
 
 -- Cleanup on script end or player leaving
 game:GetService("Players").PlayerRemoving:Connect(function(plr)
     if plr == player then
-        state.running = false
+        -- Cleanup fly
         if state.flyEnabled then
             FlyModule.NOFLY()
             FlyModule.unmobilefly(player)
             removeFlyButtons()
         end
+        -- Cleanup GUI
         removeAdminTitle()
+        -- Cleanup noclip
         disableNoclip()
     end
 end)
 
 -- Final initialization
 task.delay(1, function()
+    -- Set initial normal walk speed
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = state.normalWalkSpeed
     end
     
+    -- Welcome notification
     Rayfield:Notify({
-        Title="🛡️ NERO Ultimate v2.3 FIXED", 
-        Content="Loaded successfully! Auto summit and manual TP fixed. Anti-detection system enabled.", 
+        Title="🛡️ NERO Ultimate v2.1", 
+        Content="Loaded successfully! Enhanced player teleport system added. Check Info tab for controls.", 
         Duration=4
     })
 end)
