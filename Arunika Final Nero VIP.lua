@@ -121,11 +121,11 @@ local function runRouteOnce()
     for _, cf in ipairs(checkpoints) do
         safeTeleportCharacterTo(player, cf)
         if player.Character then jumpOnceForChar(player.Character) end
-        task.wait(2.5)
+        task.wait(0.5)
     end
     safeTeleportCharacterTo(player, finishCFrame)
     if player.Character then jumpOnceForChar(player.Character) end
-    task.wait(2.5)
+    task.wait(0.3)
     pcall(function()
         if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
             player.Character:FindFirstChildOfClass("Humanoid").Health = 0
@@ -142,7 +142,7 @@ local function loopSummit()
         if not running then break end
         local t = 0
         while running and (not player.Character or not player.Character:FindFirstChild("HumanoidRootPart")) and t < 40 do
-            task.wait(0.5)
+            task.wait(0.5); t = t + 0.5
         end
     end
 end
