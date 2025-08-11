@@ -158,7 +158,7 @@ local function summitLoop()
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                task.wait(2)
+                task.wait(5.5)
             end
         end
         task.wait(1)
