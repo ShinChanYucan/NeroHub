@@ -125,7 +125,7 @@ local function runRouteOnce()
     end
     safeTeleportCharacterTo(player, finishCFrame)
     if player.Character then jumpOnceForChar(player.Character) end
-    task.wait(0.3)
+    task.wait(0.1)
     pcall(function()
         if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
             player.Character:FindFirstChildOfClass("Humanoid").Health = 0
