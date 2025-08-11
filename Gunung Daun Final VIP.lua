@@ -337,7 +337,6 @@ local function summitLoop()
                 warn("Waiting " .. waitTime .. " seconds at CP" .. i)
                 task.wait(waitTime)
             end
-        ::continue_for::
         end
         
         -- Return to start with random delay
@@ -361,7 +360,6 @@ local function summitLoop()
         
         task.wait(randomDelay(2.0, 4.0))
         warn("Summit loop cycle completed")
-    ::continue_while::
     end
     
     warn("Summit loop ended")
