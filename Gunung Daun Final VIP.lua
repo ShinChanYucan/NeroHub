@@ -281,7 +281,6 @@ local function summitLoop()
                 if not success then
                     warn("Failed to teleport to CP5")
                     disableNoclip()
-                    goto continue_for
                 end
                 
                 task.wait(randomDelay(1.0, 2.0))
@@ -329,7 +328,6 @@ local function summitLoop()
                 
                 if not success then
                     warn("Failed to teleport to CP" .. i)
-                    goto continue_for
                 end
                 
                 -- Variable wait time for each checkpoint
