@@ -1,4 +1,4 @@
--- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version (FIXED AUTO SUMMIT & MANUAL TP)
+/-- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version (FIXED AUTO SUMMIT & MANUAL TP)
 -- Features:
 -- Auto Loop Summit + Manual TP (Support Carry Player) - ANTI-DETECTION
 -- Infinity Jump, ESP Player, Noclip
@@ -66,7 +66,7 @@ local function humanizeMovement()
     -- Add small random variations to make movement look more human
     return Vector3.new(
         (math.random() - 0.5) * 4,
-        0,
+        (math.random() - 0.5) * 2,
         (math.random() - 0.5) * 4
     )
 end
@@ -129,7 +129,7 @@ local function smoothTeleportCharacter(character, targetPosition, speed)
     local startPosition = hrp.Position
     local distance = (targetPosition - startPosition).Magnitude
     
-    -- If distance is too far (>300 studs), use instant TP with noclip
+    -- If distance is too far (>300 studs), use instant
     if distance > 300 then
         enableNoclip()
         task.wait(0.05)
@@ -200,16 +200,16 @@ local function findPlayerByName(searchName)
         end
     end
     
-    -- Then try display name match
+    -- Then try display name
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.DisplayName:lower() == lowerSearch then
+        if plr.DisplayName and plr.DisplayName:lower() == lowerSearch then
             return plr
         end
     end
     
-    -- Finally try partial matches
+    -- Partial match
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name:lower():find(lowerSearch) or plr.DisplayName:lower():find(lowerSearch) then
+        if plr.Name:lower():find(lowerSearch, 1, true) or (plr.DisplayName and plr.DisplayName:lower():find(lowerSearch, 1, true)) then
             return plr
         end
     end
@@ -217,44 +217,7 @@ local function findPlayerByName(searchName)
     return nil
 end
 
--- Noclip control (IMPROVED)
-local noclipConnection = nil
-local function enableNoclip()
-    if noclipConnection then return end
-    noclipConnection = RunService.Stepped:Connect(function()
-        if player.Character then
-            for _, part in pairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-            end
-        end
-    end)
-end
-
-local function disableNoclip()
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-    if player.Character then
-        for _, part in pairs(player.Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                part.CanCollide = true
-            end
-        end
-        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        end
-    end
-end
-
--- COMPLETELY REWRITTEN SUMMIT LOOP (FIXED)
+-- LETELY REWRITTEN SUMMIT LOOP (FIXED)
 local function summitLoop()
     if state.running then
         warn("Summit loop already running!")
@@ -269,7 +232,7 @@ local function summitLoop()
         if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
             warn("Character not found, waiting...")
             task.wait(2)
-            continue
+            goto continue_while
         end
         
         local carriedChar = getCarriedCharacter()
@@ -318,7 +281,7 @@ local function summitLoop()
                 if not success then
                     warn("Failed to teleport to CP5")
                     disableNoclip()
-                    continue
+                    goto continue_for
                 end
                 
                 task.wait(randomDelay(1.0, 2.0))
@@ -350,14 +313,12 @@ local function summitLoop()
                 task.wait(0.5)
                 disableNoclip()
                 warn("CP5 descent completed")
-                
             else
-                -- Normal checkpoint teleport
                 local success = false
                 if state.smoothTP then
-                    success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 50)
+                    success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 40)
                     if carriedChar then
-                        smoothTeleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2), state.tpSpeed or 50)
+                        smoothTeleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2), state.tpSpeed or 40)
                     end
                 else
                     success = teleportCharacter(player.Character, pos)
@@ -368,7 +329,7 @@ local function summitLoop()
                 
                 if not success then
                     warn("Failed to teleport to CP" .. i)
-                    continue
+                    goto continue_for
                 end
                 
                 -- Variable wait time for each checkpoint
@@ -376,6 +337,7 @@ local function summitLoop()
                 warn("Waiting " .. waitTime .. " seconds at CP" .. i)
                 task.wait(waitTime)
             end
+        ::continue_for::
         end
         
         -- Return to start with random delay
@@ -399,6 +361,7 @@ local function summitLoop()
         
         task.wait(randomDelay(2.0, 4.0))
         warn("Summit loop cycle completed")
+    ::continue_while::
     end
     
     warn("Summit loop ended")
