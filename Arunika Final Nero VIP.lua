@@ -84,7 +84,7 @@ local function safeTeleportCharacterTo(plr, targetCFrame)
             hrp.RotVelocity = Vector3.zero
         end
     end)
-    task.wait(0.20)
+    task.wait(0.1)
 end
 
 -- == Fixed Player Finding Function ==
