@@ -143,7 +143,7 @@ local function summitLoop()
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                task.wait(0.3)
+                task.wait(0.5)
                 for y = 150, 0, -10 do
                     local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
                     teleportCharacter(player.Character, descendPos)
