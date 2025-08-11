@@ -1102,6 +1102,30 @@ SpecialTab:CreateToggle({
     end
 })
 
+SpecialTab:CreateToggle({
+    Name = "🛡️ BYPASS ANTICHEAT",
+    CurrentValue = false,
+    Callback = function(v)
+        state.anticheatBypassEnabled = v
+        if v then
+            pcall(function() 
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/ACR/refs/heads/main/Acr", true))() 
+            end)
+            Rayfield:Notify({
+                Title="Bypass Anticheat", 
+                Content="Anticheat bypass enabled successfully!", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="Bypass Anticheat", 
+                Content="Anticheat bypass disabled", 
+                Duration=2
+            })
+        end
+    end
+})
+
 -- Settings Tab
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
