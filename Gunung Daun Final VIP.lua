@@ -63,39 +63,36 @@ local function randomDelay(min, max)
 end
 
 local function humanizeMovement()
+    -- Add small random variations to make movement look more human
     return Vector3.new(
-        (math.random() - 0.5) * 2,
-        (math.random() - 0.5) * 2,
-        (math.random() - 0.5) * 2
+        (math.random() - 0.5) * 4,
+        0,
+        (math.random() - 0.5) * 4
     )
 end
 
--- Teleport function
+-- IMPROVED TELEPORT FUNCTION (FIXED)
 local function teleportCharacter(character, position)
     if not character or not character:FindFirstChild("HumanoidRootPart") then 
         warn("Character or HumanoidRootPart not found")
-        return false
+        return false 
     end
-    if not position then
-        warn("Position is nil, teleport aborted")
-        return false
-    end
-
+    
     local hrp = character.HumanoidRootPart
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-
+    
     -- Stop current movement
     if humanoid then
         humanoid.PlatformStand = true
         humanoid:ChangeState(Enum.HumanoidStateType.Physics)
     end
-
+    
     -- Add humanized movement variation
     local finalPos = position + humanizeMovement()
-
+    
     -- Teleport using CFrame
     hrp.CFrame = CFrame.new(finalPos)
-
+    
     -- Reset velocity completely
     if hrp.AssemblyLinearVelocity then
         hrp.AssemblyLinearVelocity = Vector3.zero
@@ -109,101 +106,301 @@ local function teleportCharacter(character, position)
     if hrp.RotVelocity then
         hrp.RotVelocity = Vector3.zero
     end
-
-    task.wait(0.05)
-
-    -- Restore movement
+    
+    -- Re-enable normal movement
+    task.wait(0.1)
     if humanoid then
         humanoid.PlatformStand = false
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
     end
-
+    
     return true
 end
 
--- Smooth teleport with tween
+-- SMOOTH TELEPORT FUNCTION (IMPROVED)
 local function smoothTeleportCharacter(character, targetPosition, speed)
     if not character or not character:FindFirstChild("HumanoidRootPart") then 
         warn("Character or HumanoidRootPart not found for smooth teleport")
         return false
     end
-    if not targetPosition then
-        warn("Target position is nil, smooth teleport aborted")
-        return false
-    end
-
+    
     local hrp = character.HumanoidRootPart
-    local tween = TweenService:Create(
-        hrp,
-        TweenInfo.new((hrp.Position - targetPosition).Magnitude / (speed or 50), Enum.EasingStyle.Linear),
-        {CFrame = CFrame.new(targetPosition)}
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local startPosition = hrp.Position
+    local distance = (targetPosition - startPosition).Magnitude
+    
+    -- If distance is too far (>300 studs), use instant TP with noclip
+    if distance > 300 then
+        enableNoclip()
+        task.wait(0.05)
+        local success = teleportCharacter(character, targetPosition)
+        task.wait(0.1)
+        disableNoclip()
+        return success
+    end
+    
+    -- For shorter distances, use smooth movement
+    speed = speed or math.min(60, distance / 1.5) -- Improved adaptive speed
+    local duration = distance / speed
+    duration = math.max(0.3, math.min(duration, 2.5)) -- Better duration clamping
+    
+    local tweenInfo = TweenInfo.new(
+        duration,
+        Enum.EasingStyle.Quart,
+        Enum.EasingDirection.InOut,
+        0,
+        false,
+        0
     )
+    
+    local finalPos = targetPosition + humanizeMovement()
+    local tween = TweenService:Create(hrp, tweenInfo, {
+        CFrame = CFrame.new(finalPos)
+    })
+    
     tween:Play()
     tween.Completed:Wait()
-
+    
+    -- Ensure velocity is stopped
+    if hrp.AssemblyLinearVelocity then
+        hrp.AssemblyLinearVelocity = Vector3.zero
+    end
+    if hrp.AssemblyAngularVelocity then
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+    
     return true
 end
 
--- Auto summit loop
+-- Get carried player character if near (IMPROVED)
+local function getCarriedCharacter()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (plr.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+            if dist < 12 then -- Increased detection range
+                return plr.Character
+            end
+        end
+    end
+    return nil
+end
+
+-- == Fixed Player Finding Function ==
+local function findPlayerByName(searchName)
+    if not searchName or searchName == "" then return nil end
+    local lowerSearch = searchName:lower()
+    
+    -- First try exact username match
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name:lower() == lowerSearch then
+            return plr
+        end
+    end
+    
+    -- Then try display name match
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.DisplayName:lower() == lowerSearch then
+            return plr
+        end
+    end
+    
+    -- Finally try partial matches
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name:lower():find(lowerSearch) or plr.DisplayName:lower():find(lowerSearch) then
+            return plr
+        end
+    end
+    
+    return nil
+end
+
+-- Noclip control (IMPROVED)
+local noclipConnection = nil
+local function enableNoclip()
+    if noclipConnection then return end
+    noclipConnection = RunService.Stepped:Connect(function()
+        if player.Character then
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            end
+        end
+    end)
+end
+
+local function disableNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    if player.Character then
+        for _, part in pairs(player.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                part.CanCollide = true
+            end
+        end
+        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end
+end
+
+-- COMPLETELY REWRITTEN SUMMIT LOOP (FIXED)
 local function summitLoop()
     if state.running then
         warn("Summit loop already running!")
         return
     end
-
+    
     state.running = true
     warn("Starting summit loop...")
-
+    
     while state.running do
-        ::continue_loop::
         -- Check if character exists
         if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
             warn("Character not found, waiting...")
             task.wait(2)
-            goto continue_loop
+            continue
         end
-
+        
         local carriedChar = getCarriedCharacter()
         if carriedChar then
             warn("Carrying player: " .. carriedChar.Parent.Name)
         end
-
+        
         -- Loop through each checkpoint
         for i, pos in ipairs(checkpoints) do
             if not state.running then 
                 warn("Summit loop stopped by user")
                 break 
             end
-
+            
             -- Verify character still exists
             if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
-                goto continue_loop
+                warn("Character lost during loop")
+                break
             end
-
+            
             warn("Teleporting to CP" .. i .. ": " .. tostring(pos))
-            task.wait(state.tpDelay)
-
-            local success
-            if state.smoothTP then
-                success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 50)
-                if carriedChar then
-                    smoothTeleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2), state.tpSpeed or 50)
+            
+            -- Add random delay between each checkpoint
+            task.wait(randomDelay(0.8, 1.5))
+            
+            if i == #checkpoints then
+                -- CP5 special handling: enable noclip and handle descent
+                warn("Reached CP5, enabling noclip...")
+                enableNoclip()
+                task.wait(0.2)
+                
+                -- Teleport to CP5
+                local success = false
+                if state.smoothTP then
+                    success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 50)
+                    if carriedChar then
+                        smoothTeleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2), state.tpSpeed or 50)
+                    end
+                else
+                    success = teleportCharacter(player.Character, pos)
+                    if carriedChar then
+                        teleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2))
+                    end
                 end
+                
+                if not success then
+                    warn("Failed to teleport to CP5")
+                    disableNoclip()
+                    continue
+                end
+                
+                task.wait(randomDelay(1.0, 2.0))
+                
+                -- Smooth descend with better control
+                local baseY = pos.Y - 150 -- Target ground level
+                local currentY = pos.Y
+                
+                while currentY > baseY and state.running do
+                    local stepSize = math.random(12, 20)
+                    currentY = math.max(baseY, currentY - stepSize)
+                    local descendPos = Vector3.new(pos.X, currentY, pos.Z)
+                    
+                    if state.smoothTP then
+                        smoothTeleportCharacter(player.Character, descendPos, 35)
+                        if carriedChar then
+                            smoothTeleportCharacter(carriedChar, descendPos + Vector3.new(2, 0, 2), 35)
+                        end
+                    else
+                        teleportCharacter(player.Character, descendPos)
+                        if carriedChar then
+                            teleportCharacter(carriedChar, descendPos + Vector3.new(2, 0, 2))
+                        end
+                    end
+                    
+                    task.wait(randomDelay(0.15, 0.35))
+                end
+                
+                task.wait(0.5)
+                disableNoclip()
+                warn("CP5 descent completed")
+                
             else
-                success = teleportCharacter(player.Character, pos)
-                if carriedChar then
-                    teleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2))
+                -- Normal checkpoint teleport
+                local success = false
+                if state.smoothTP then
+                    success = smoothTeleportCharacter(player.Character, pos, state.tpSpeed or 50)
+                    if carriedChar then
+                        smoothTeleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2), state.tpSpeed or 50)
+                    end
+                else
+                    success = teleportCharacter(player.Character, pos)
+                    if carriedChar then
+                        teleportCharacter(carriedChar, pos + Vector3.new(2, 0, 2))
+                    end
                 end
-            end
-
-            if not success then
-                warn("Failed to teleport to CP" .. i)
+                
+                if not success then
+                    warn("Failed to teleport to CP" .. i)
+                    continue
+                end
+                
+                -- Variable wait time for each checkpoint
+                local waitTime = randomDelay(3.0, 5.0)
+                warn("Waiting " .. waitTime .. " seconds at CP" .. i)
+                task.wait(waitTime)
             end
         end
-
+        
+        -- Return to start with random delay
+        warn("Returning to start...")
+        task.wait(randomDelay(1.5, 2.5))
+        
+        if state.running and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local carriedChar = getCarriedCharacter()
+            if state.smoothTP then
+                smoothTeleportCharacter(player.Character, checkpoints[1], state.tpSpeed or 50)
+                if carriedChar then
+                    smoothTeleportCharacter(carriedChar, checkpoints[1] + Vector3.new(2, 0, 2), state.tpSpeed or 50)
+                end
+            else
+                teleportCharacter(player.Character, checkpoints[1])
+                if carriedChar then
+                    teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(2, 0, 2))
+                end
+            end
+        end
+        
+        task.wait(randomDelay(2.0, 4.0))
         warn("Summit loop cycle completed")
-        state.running = false
     end
-
+    
     warn("Summit loop ended")
 end
 
