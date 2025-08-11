@@ -1,4 +1,4 @@
-/-- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version (FIXED AUTO SUMMIT & MANUAL TP)
+-- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version (FIXED AUTO SUMMIT & MANUAL TP)
 -- Features:
 -- Auto Loop Summit + Manual TP (Support Carry Player) - ANTI-DETECTION
 -- Infinity Jump, ESP Player, Noclip
