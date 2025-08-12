@@ -49,7 +49,6 @@ local checkpoints = {
     Vector3.new(-1399.73083, 578.413635, -953.336426),   -- CP3
     Vector3.new(-1701.85278, 816.575745, -1401.61108),   -- CP4
     Vector3.new(-3231.60278, 1715.8175, -2591.06348),    -- CP5 (checkpoint sebelum finish)
-    Vector3.new(-3231.60278, 1865.8175, -2591.06348),    -- Finish (150 unit di atas CP5)
 }
 
 -- == Helper Functions ==
@@ -177,8 +176,8 @@ local function summitLoop()
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
 
-            if i == 4 then
-                -- CP4: Normal teleport
+            if i <= 4 then
+                -- CP1-CP4: Normal teleports
                 teleportCharacter(player.Character, pos)
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
@@ -192,20 +191,14 @@ local function summitLoop()
                     tweenFlyToPosition(carriedChar, pos + Vector3.new(0, 0, 3), 3)
                 end
                 task.wait(0.5)
-            elseif i == 6 then
+                
                 -- CP5 → Finish: Tween fly upward to finish
-                tweenFlyToPosition(player.Character, pos, 2)
+                local finishPos = Vector3.new(pos.X, pos.Y + 150, pos.Z)
+                tweenFlyToPosition(player.Character, finishPos, 2)
                 if carriedChar then
-                    tweenFlyToPosition(carriedChar, pos + Vector3.new(0, 0, 3), 2)
+                    tweenFlyToPosition(carriedChar, finishPos + Vector3.new(0, 0, 3), 2)
                 end
                 disableNoclip()
-                task.wait(1)
-            else
-                -- CP1, CP2, CP3: Normal teleports
-                teleportCharacter(player.Character, pos)
-                if carriedChar then
-                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
-                end
                 task.wait(1)
             end
         end
@@ -772,7 +765,6 @@ MainTab:CreateToggle({
         else 
             removeJumpButton() 
         end
-        saveConfig() -- Note: saveConfig() belum ada di script ini
     end
 })
 
@@ -1265,7 +1257,7 @@ InfoTab:CreateParagraph({
 
 InfoTab:CreateParagraph({
     Title = "â„¹ï¸ Script Info",
-    Content = "ShieldTeam | NERO Ultimate v2.1 - Enhanced with advanced player teleport system and fixed summit sequence. For support, contact ShieldTeam developers."
+    Content = "ShieldTeam | NERO Ultimate v2.1 - Fixed summit sequence CP4→CP5→Finish with tween fly. For support, contact ShieldTeam developers."
 })
 
 -- Cleanup on script end or player leaving
@@ -1294,7 +1286,7 @@ task.delay(1, function()
     -- Welcome notification
     Rayfield:Notify({
         Title="ðŸ›¡ï¸ NERO Ultimate v2.1", 
-        Content="Loaded successfully! Fixed summit sequence with tween fly CP4→CP5→Finish. Check Info tab for controls.", 
+        Content="Loaded successfully! Fixed summit CP4→CP5→Finish with tween fly. Check Info tab for controls.", 
         Duration=4
     })
 end)
