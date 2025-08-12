@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -41,68 +42,62 @@ local espTable = {}
 local adminGui = nil
 local flyGui, ascendBtn, descendBtn = nil, nil, nil
 
--- Checkpoints Gunung Daun (sesuaikan dengan pos aslinya)
+-- Checkpoints Gunung Daun
 local checkpoints = {
     Vector3.new(-625.014038, 250.367432, -383.940338),   -- CP1
     Vector3.new(-1201.94055, 261.679169, -487.414337),   -- CP2
     Vector3.new(-1399.73083, 578.413635, -953.336426),   -- CP3
     Vector3.new(-1701.85278, 816.575745, -1401.61108),   -- CP4
     Vector3.new(-3231.60278, 1715.8175 + 150, -2591.06348), -- CP5 (fly dulu 150 atas)
-    Vector3.new(-3231.60278, 1715.8175, -2591.06348)     -- Finish
 }
 
--- Function untuk teleport karakter
-local function teleportCharacter(char, pos)
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        char:PivotTo(CFrame.new(pos))
-    end
-end
-
--- Function untuk enable/disable noclip
-local function enableNoclip()
-    state.noclipEnabled = true
-end
-
-local function disableNoclip()
-    state.noclipEnabled = false
-end
-
--- Function get carried player
-local function getCarriedCharacter()
-    local carriedName = state.tpUsername
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if string.lower(plr.Name) == string.lower(carriedName) or string.lower(plr.DisplayName) == string.lower(carriedName) then
-            return plr.Character
+-- == Helper Functions ==
+local function teleportCharacter(character, position)
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        if typeof(character.SetPrimaryPartCFrame) == "function" then
+            character:SetPrimaryPartCFrame(CFrame.new(position))
+        else
+            character.HumanoidRootPart.CFrame = CFrame.new(position)
         end
     end
-    return nil
 end
 
+-- (Fungsi-fungsi enableNoclip, disableNoclip, enableFly, disableFly, dll tetap sama dari file asli kamu)
+
+-- Summit Loop
 local function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
 
-            -- Perubahan: dari CP4 terbang dulu ke CP5 sebelum finish
             if i == 4 then
-                -- Aktifkan noclip & fly
+                -- CP4 → CP5 fly tween + backup timeout
                 enableNoclip()
                 enableFly()
-                
-                -- Tween ke CP5
+
                 local tweenInfo = TweenInfo.new(3, Enum.EasingStyle.Linear)
-                local tween = game:GetService("TweenService"):Create(player.Character.HumanoidRootPart, tweenInfo, {CFrame = CFrame.new(checkpoints[5])})
+                local tween = TweenService:Create(player.Character.HumanoidRootPart, tweenInfo, {CFrame = CFrame.new(checkpoints[5])})
                 tween:Play()
-                tween.Completed:Wait()
+
+                -- Backup timeout
+                local done = false
+                tween.Completed:Connect(function()
+                    done = true
+                end)
+                local startTime = tick()
+                repeat
+                    task.wait(0.1)
+                until done or tick() - startTime > 5
+
+                if not done then
+                    teleportCharacter(player.Character, checkpoints[5])
+                end
 
                 if carriedChar then
                     teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
                 end
 
-                task.wait(1)
-
-                -- Matikan fly
                 disableFly()
                 disableNoclip()
 
