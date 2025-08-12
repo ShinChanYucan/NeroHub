@@ -1,4 +1,4 @@
--- ðŸ›¡ï¸ ShieldTeam | NERO - Final Merge Ultimate Version
+-- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version
 -- Features:
 -- Auto Loop Summit + Manual TP (Support Carry Player)
 -- Infinity Jump, ESP Player, Noclip
@@ -14,7 +14,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -49,127 +48,37 @@ local checkpoints = {
     Vector3.new(-1399.73083, 578.413635, -953.336426),   -- CP3
     Vector3.new(-1701.85278, 816.575745, -1401.61108),   -- CP4
     Vector3.new(-3231.60278, 1715.8175 + 150, -2591.06348), -- CP5 (fly dulu 150 atas)
+    Vector3.new(-3231.60278, 1715.8175, -2591.06348)     -- Finish
 }
 
--- == Helper Functions ==
-local function teleportCharacter(character, position)
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        if typeof(character.SetPrimaryPartCFrame) == "function" then
-            character:SetPrimaryPartCFrame(CFrame.new(position))
-        else
-            character.HumanoidRootPart.CFrame = CFrame.new(position)
-        end
-        -- Stop velocity
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.RotVelocity = Vector3.zero
-        end
+-- Function untuk teleport karakter
+local function teleportCharacter(char, pos)
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        char:PivotTo(CFrame.new(pos))
     end
 end
 
--- Tween fly function for smooth movement
-local function tweenFlyToPosition(character, targetPosition, duration)
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    
-    local hrp = character.HumanoidRootPart
-    local startPosition = hrp.Position
-    
-    -- Enable noclip during tween
-    local tempNoclip = not state.noclipEnabled
-    if tempNoclip then
-        enableNoclip()
-    end
-    
-    -- Create tween info
-    local tweenInfo = TweenInfo.new(
-        duration or 3,
-        Enum.EasingStyle.Quart,
-        Enum.EasingDirection.Out,
-        0,
-        false,
-        0
-    )
-    
-    -- Create a part to tween (since we can't tween CFrame directly on HumanoidRootPart reliably)
-    local targetCFrame = CFrame.new(targetPosition)
-    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
-    
-    -- Start tween
-    tween:Play()
-    
-    -- Wait for completion
-    tween.Completed:Wait()
-    
-    -- Disable temporary noclip if it was enabled
-    if tempNoclip then
-        disableNoclip()
-    end
-end
-
--- Get carried player character if near
-local function getCarriedCharacter()
-    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    for _, plr in pairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local dist = (plr.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
-            if dist < 8 then
-                return plr.Character
-            end
-        end
-    end
-    return nil
-end
-
--- == Fixed Player Finding Function ==
-local function findPlayerByName(searchName)
-    if not searchName or searchName == "" then return nil end
-    local lowerSearch = searchName:lower()
-    
-    -- First try exact username match
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name:lower() == lowerSearch then
-            return plr
-        end
-    end
-    
-    -- Then try display name match
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.DisplayName:lower() == lowerSearch then
-            return plr
-        end
-    end
-    
-    -- Finally try partial matches
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name:lower():find(lowerSearch) or plr.DisplayName:lower():find(lowerSearch) then
-            return plr
-        end
-    end
-    
-    return nil
-end
-
--- Noclip control
-local noclipConnection = nil
+-- Function untuk enable/disable noclip
 local function enableNoclip()
-    if noclipConnection then return end
-    noclipConnection = RunService.Stepped:Connect(function()
-        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-            player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(11)
-        end
-    end)
+    state.noclipEnabled = true
 end
 
 local function disableNoclip()
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
+    state.noclipEnabled = false
 end
 
--- Summit Loop with carry support
+-- Function get carried player
+local function getCarriedCharacter()
+    local carriedName = state.tpUsername
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if string.lower(plr.Name) == string.lower(carriedName) or string.lower(plr.DisplayName) == string.lower(carriedName) then
+            return plr.Character
+        end
+    end
+    return nil
+end
+
+-- === summitLoop dengan modifikasi CP4 → CP5 fly tween ===
 local function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
@@ -194,11 +103,33 @@ local function summitLoop()
                 end
                 disableNoclip()
             else
-                teleportCharacter(player.Character, pos)
-                if carriedChar then
-                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
+                -- Modifikasi: CP4 → CP5 dengan fly tween
+                if i == 4 then
+                    enableNoclip()
+                    state.flyEnabled = true
+                    local TweenService = game:GetService("TweenService")
+                    local char = player.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        local hrp = char.HumanoidRootPart
+                        local goal = checkpoints[5] -- CP5
+                        local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear)
+                        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(goal)})
+                        tween:Play()
+                        tween.Completed:Wait()
+                    end
+                    if carriedChar then
+                        teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
+                    end
+                    task.wait(1)
+                    state.flyEnabled = false
+                    disableNoclip()
+                else
+                    teleportCharacter(player.Character, pos)
+                    if carriedChar then
+                        teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
+                    end
+                    task.wait(1)
                 end
-                task.wait(1)
             end
         end
         task.wait(1)
@@ -293,7 +224,7 @@ local function createFlyButtons()
     ascendBtn.AnchorPoint = Vector2.new(1, 1)
     ascendBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
     ascendBtn.BackgroundTransparency = 0.1
-    ascendBtn.Text = "â–²"
+    ascendBtn.Text = "▲"
     ascendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     ascendBtn.TextScaled = true
     ascendBtn.Font = Enum.Font.SourceSansBold
@@ -322,7 +253,7 @@ local function createFlyButtons()
     descendBtn.AnchorPoint = Vector2.new(1, 1)
     descendBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
     descendBtn.BackgroundTransparency = 0.1
-    descendBtn.Text = "â–¼"
+    descendBtn.Text = "▼"
     descendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     descendBtn.TextScaled = true
     descendBtn.Font = Enum.Font.SourceSansBold
@@ -697,7 +628,6 @@ local function createJumpButton()
         end
     end)
 end
-
 -- == Rayfield UI Setup ==
 local success, Rayfield = pcall(function()
     return loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
@@ -709,7 +639,7 @@ if not success or not Rayfield then
 end
 
 local Window = Rayfield:CreateWindow({
-    Name = "ðŸ›¡ï¸ ShieldTeam | NERO Ultimate",
+    Name = "🛡️ ShieldTeam | NERO Ultimate",
     LoadingTitle = "ShieldTeam | NERO",
     LoadingSubtitle = "Ultimate Summit & Features",
     ConfigurationSaving = { Enabled = false }
@@ -763,9 +693,11 @@ MainTab:CreateToggle({
         else 
             removeJumpButton() 
         end
+        saveConfig() -- Note: saveConfig() belum ada di script ini
     end
 })
 
+-- LOKASI 4: Jump Power Input (Baris 668-684)
 MainTab:CreateInput({
     Name = "Jump Power (number)",
     PlaceholderText = tostring(state.JumpPower),
@@ -786,7 +718,6 @@ MainTab:CreateInput({
         end
     end
 })
-
 MainTab:CreateToggle({
     Name = "Infinity Jump",
     CurrentValue = false,
@@ -944,7 +875,7 @@ SpecialTab:CreateButton({
 
 -- Quick Teleport to Nearest Player
 SpecialTab:CreateButton({
-    Name = "ðŸ" TP to Nearest Player",
+    Name = "📍 TP to Nearest Player",
     Callback = function()
         if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
             Rayfield:Notify({Title="Error", Content="Your character is not spawned", Duration=2})
@@ -984,7 +915,7 @@ SpecialTab:CreateButton({
 
 -- Teleport All Players to You
 SpecialTab:CreateButton({
-    Name = "ðŸŒŸ Bring All Players to Me",
+    Name = "🌟 Bring All Players to Me",
     Callback = function()
         if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
             Rayfield:Notify({Title="Error", Content="Your character is not spawned", Duration=2})
@@ -1038,7 +969,7 @@ local function createQuickTPButtons()
                 local displayText = plr.DisplayName .. " (@" .. plr.Name .. ")"
                 
                 SpecialTab:CreateButton({
-                    Name = "ðŸš€ TP â†' " .. (string.len(displayText) > 20 and string.sub(displayText, 1, 20) .. "..." or displayText),
+                    Name = "🚀 TP → " .. (string.len(displayText) > 20 and string.sub(displayText, 1, 20) .. "..." or displayText),
                     Callback = function()
                         -- Double check player is still valid
                         local currentPlr = nil
@@ -1087,7 +1018,7 @@ end
 createQuickTPButtons()
 
 SpecialTab:CreateButton({
-    Name = "ðŸ"„ Refresh Quick TP Buttons",
+    Name = "🔄 Refresh Quick TP Buttons",
     Callback = function()
         Rayfield:Notify({
             Title="Quick TP Buttons", 
@@ -1098,7 +1029,7 @@ SpecialTab:CreateButton({
 })
 
 SpecialTab:CreateButton({
-    Name = "ðŸ"‹ List All Players",
+    Name = "📋 List All Players",
     Callback = function()
         local playerList = {}
         for _, plr in ipairs(Players:GetPlayers()) do
@@ -1143,7 +1074,7 @@ SpecialTab:CreateToggle({
 })
 
 SpecialTab:CreateToggle({
-    Name = "ðŸ›¡ï¸ BYPASS ANTICHEAT",
+    Name = "🛡️ BYPASS ANTICHEAT",
     CurrentValue = false,
     Callback = function(v)
         state.anticheatBypassEnabled = v
@@ -1234,28 +1165,28 @@ SettingsTab:CreateButton({
 local InfoTab = Window:CreateTab("Info", 4483362458)
 
 InfoTab:CreateParagraph({
-    Title = "ðŸ›¡ï¸ NERO Ultimate Features",
-    Content = "Auto Summit with carry support â€¢ InfinityYield-style fly â€¢ Anti-reset speed hack â€¢ Enhanced player teleport system â€¢ ESP & Noclip â€¢ Fake admin title"
+    Title = "🛡️ NERO Ultimate Features",
+    Content = "Auto Summit with carry support • InfinityYield-style fly • Anti-reset speed hack • Enhanced player teleport system • ESP & Noclip • Fake admin title"
 })
 
 InfoTab:CreateParagraph({
-    Title = "ðŸŽ® Controls (PC)",
-    Content = "Fly: WASD (movement) + QE (up/down) â€¢ Mobile: Use GUI buttons or manual controls in Special tab"
+    Title = "🎮 Controls (PC)",
+    Content = "Fly: WASD (movement) + QE (up/down) • Mobile: Use GUI buttons or manual controls in Special tab"
 })
 
 InfoTab:CreateParagraph({
-    Title = "ðŸš€ Enhanced Teleport Features",
-    Content = "â€¢ Quick TP buttons for nearby players â€¢ Teleport to nearest player â€¢ Bring all players to you â€¢ Manual teleport with username/display name search"
+    Title = "🚀 Enhanced Teleport Features",
+    Content = "• Quick TP buttons for nearby players • Teleport to nearest player • Bring all players to you • Manual teleport with username/display name search"
 })
 
 InfoTab:CreateParagraph({
-    Title = "ðŸ"§ Speed Hack",
+    Title = "🔧 Speed Hack",
     Content = "Anti-reset technology prevents speed from being reset by the game. Uses velocity backup if WalkSpeed fails."
 })
 
 InfoTab:CreateParagraph({
-    Title = "â„¹ï¸ Script Info",
-    Content = "ShieldTeam | NERO Ultimate v2.1 - Fixed summit sequence CP4→CP5→Finish with tween fly. For support, contact ShieldTeam developers."
+    Title = "ℹ️ Script Info",
+    Content = "ShieldTeam | NERO Ultimate v2.1 - Enhanced with advanced player teleport system. For support, contact ShieldTeam developers."
 })
 
 -- Cleanup on script end or player leaving
@@ -1283,8 +1214,8 @@ task.delay(1, function()
     
     -- Welcome notification
     Rayfield:Notify({
-        Title="ðŸ›¡ï¸ NERO Ultimate v2.1", 
-        Content="Loaded successfully! Fixed summit CP4→CP5→Finish with tween fly. Check Info tab for controls.", 
+        Title="🛡️ NERO Ultimate v2.1", 
+        Content="Loaded successfully! Enhanced player teleport system added. Check Info tab for controls.", 
         Duration=4
     })
 end)
