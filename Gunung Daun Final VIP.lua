@@ -48,7 +48,7 @@ local checkpoints = {
     Vector3.new(-1201.94055, 261.679169, -487.414337),   -- CP2
     Vector3.new(-1399.73083, 578.413635, -953.336426),   -- CP3
     Vector3.new(-1701.85278, 816.575745, -1401.61108),   -- CP4
-    Vector3.new(-3231.60278, 1715.8175, -2591.06348),    -- CP5 (checkpoint sebelum finish)
+    Vector3.new(-3231.60278, 1715.8175 + 150, -2591.06348), -- CP5 (fly dulu 150 atas)
 }
 
 -- == Helper Functions ==
@@ -169,41 +169,39 @@ local function disableNoclip()
     end
 end
 
--- Updated Summit Loop with proper checkpoint 4 → 5 → finish sequence
+-- Summit Loop with carry support
 local function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
 
-            if i <= 4 then
-                -- CP1-CP4: Normal teleports
+            if i == #checkpoints then
+                -- CP5 special: fly + noclip + descend
+                enableNoclip()
+                teleportCharacter(player.Character, pos)
+                if carriedChar then
+                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
+                end
+                task.wait(0.5)
+                for y = 150, 0, -10 do
+                    local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
+                    teleportCharacter(player.Character, descendPos)
+                    if carriedChar then
+                        teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
+                    end
+                    task.wait(0.2)
+                end
+                disableNoclip()
+            else
                 teleportCharacter(player.Character, pos)
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
                 task.wait(1)
-            elseif i == 5 then
-                -- CP4 → CP5: Tween fly with noclip
-                enableNoclip()
-                tweenFlyToPosition(player.Character, pos, 3)
-                if carriedChar then
-                    tweenFlyToPosition(carriedChar, pos + Vector3.new(0, 0, 3), 3)
-                end
-                task.wait(0.5)
-                
-                -- CP5 → Finish: Tween fly upward to finish
-                local finishPos = Vector3.new(pos.X, pos.Y + 150, pos.Z)
-                tweenFlyToPosition(player.Character, finishPos, 2)
-                if carriedChar then
-                    tweenFlyToPosition(carriedChar, finishPos + Vector3.new(0, 0, 3), 2)
-                end
-                disableNoclip()
-                task.wait(1)
             end
         end
         task.wait(1)
-        -- Return to start
         teleportCharacter(player.Character, checkpoints[1])
         if carriedChar then
             teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
