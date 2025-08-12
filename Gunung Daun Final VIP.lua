@@ -79,70 +79,71 @@ local function getCarriedCharacter()
 end
 
 -- === summitLoop dengan modifikasi CP4 → CP5 fly tween ===
-function summitLoop()
-    state.running = true
-    local carriedChar = getCarriedCharacter()
+local function summitLoop()
+    while state.running do
+        local carriedChar = getCarriedCharacter()
+        for i, pos in ipairs(checkpoints) do
+            if not state.running then break end
 
-    for i, pos in ipairs(checkpoints) do
-        if not state.running then break end
-
-        -- CP4 → CP5 dengan tween fly
-        if i == 4 then
-            enableNoclip()
-            state.flyEnabled = true
-            local TweenService = game:GetService("TweenService")
-            local char = player.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                local goal = checkpoints[5] -- CP5
-                local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear)
-                local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(goal)})
-                tween:Play()
-                tween.Completed:Wait()
-            end
-            if carriedChar then
-                teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
-            end
-            task.wait(1)
-            state.flyEnabled = false
-            disableNoclip()
-
-        -- CP5 → turun perlahan → finish
-        elseif i == 5 then
-            enableNoclip()
-            teleportCharacter(player.Character, pos)
-            if carriedChar then
-                teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
-            end
-            task.wait(0.5)
-            -- Turun pelan dari atas CP5 menuju finish
-            local finishPos = checkpoints[6]
-            for y = pos.Y, finishPos.Y, -10 do
-                local descendPos = Vector3.new(finishPos.X, y, finishPos.Z)
-                teleportCharacter(player.Character, descendPos)
+            -- CP5 (bukan finish): descend pelan ke finish
+            if i == (#checkpoints - 1) then
+                -- CP5 special: fly + noclip + descend
+                enableNoclip()
+                teleportCharacter(player.Character, pos)
                 if carriedChar then
-                    teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
+                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                task.wait(0.2)
-            end
-            teleportCharacter(player.Character, finishPos)
-            if carriedChar then
-                teleportCharacter(carriedChar, finishPos + Vector3.new(0, 0, 3))
-            end
-            disableNoclip()
-            break -- setelah finish, hentikan loop
+                task.wait(0.5)
+                for y = 150, 0, -10 do
+                    local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
+                    teleportCharacter(player.Character, descendPos)
+                    if carriedChar then
+                        teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
+                    end
+                    task.wait(0.2)
+                end
+                disableNoclip()
 
-        -- Teleport normal untuk CP lainnya
-        else
-            teleportCharacter(player.Character, pos)
-            if carriedChar then
-                teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
+            -- CP4 → CP5: tween fly (jeda wajib sesuai update map)
+            elseif i == 4 then
+                enableNoclip()
+                state.flyEnabled = true
+                local TweenService = game:GetService("TweenService")
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local hrp = char.HumanoidRootPart
+                    local goal = checkpoints[5] -- CP5
+                    local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear)
+                    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(goal)})
+                    tween:Play()
+                    tween.Completed:Wait()
+                end
+                if carriedChar then
+                    teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
+                end
+                task.wait(1)
+                state.flyEnabled = false
+                disableNoclip()
+
+            -- CP lain: teleport normal
+            else
+                teleportCharacter(player.Character, pos)
+                if carriedChar then
+                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
+                end
+                task.wait(1)
             end
-            task.wait(1)
         end
-    end
 
-    state.running = false
+        -- reset loop ke CP1
+        task.wait(1)
+        teleportCharacter(player.Character, checkpoints[1])
+        local carriedChar = getCarriedCharacter()
+        if carriedChar then
+            teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
+        end
+        task.wait(1)
+    end
 end
 
 -- == Infinity Jump ==
