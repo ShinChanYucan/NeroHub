@@ -1,4 +1,4 @@
--- 🛡️ ShieldTeam | NERO - Final Merge Ultimate Version
+-- ðŸ›¡ï¸ ShieldTeam | NERO - Final Merge Ultimate Version
 -- Features:
 -- Auto Loop Summit + Manual TP (Support Carry Player)
 -- Infinity Jump, ESP Player, Noclip
@@ -718,7 +718,7 @@ if not success or not Rayfield then
 end
 
 local Window = Rayfield:CreateWindow({
-    Name = "🛡️ ShieldTeam | NERO Ultimate",
+    Name = "ðŸ›¡ï¸ ShieldTeam | NERO Ultimate",
     LoadingTitle = "ShieldTeam | NERO",
     LoadingSubtitle = "Ultimate Summit & Features",
     ConfigurationSaving = { Enabled = false }
@@ -1153,7 +1153,7 @@ SpecialTab:CreateToggle({
 })
 
 SpecialTab:CreateToggle({
-    Name = "🛡️ BYPASS ANTICHEAT",
+    Name = "ðŸ›¡ï¸ BYPASS ANTICHEAT",
     CurrentValue = false,
     Callback = function(v)
         state.anticheatBypassEnabled = v
@@ -1244,7 +1244,7 @@ SettingsTab:CreateButton({
 local InfoTab = Window:CreateTab("Info", 4483362458)
 
 InfoTab:CreateParagraph({
-    Title = "🛡️ NERO Ultimate Features",
+    Title = "ðŸ›¡ï¸ NERO Ultimate Features",
     Content = "Auto Summit with carry support â€¢ InfinityYield-style fly â€¢ Anti-reset speed hack â€¢ Enhanced player teleport system â€¢ ESP & Noclip â€¢ Fake admin title"
 })
 
@@ -1293,7 +1293,7 @@ task.delay(1, function()
     
     -- Welcome notification
     Rayfield:Notify({
-        Title="🛡️ NERO Ultimate v2.1", 
+        Title="ðŸ›¡ï¸ NERO Ultimate v2.1", 
         Content="Loaded successfully! Fixed summit sequence with tween fly CP4→CP5→Finish. Check Info tab for controls.", 
         Duration=4
     })
