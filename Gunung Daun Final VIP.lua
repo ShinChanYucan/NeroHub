@@ -78,62 +78,51 @@ local function getCarriedCharacter()
     return nil
 end
 
--- === summitLoop: CP4 → tween fly → CP5 → finish ===
 local function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
-
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
 
-            -- CP4: fly tween ke CP5
+            -- Perubahan: dari CP4 terbang dulu ke CP5 sebelum finish
             if i == 4 then
+                -- Aktifkan noclip & fly
                 enableNoclip()
-                state.flyEnabled = true
-
-                local TweenService = game:GetService("TweenService")
-                local char = player.Character
-                if char and char:FindFirstChild("HumanoidRootPart") then
-                    local hrp = char.HumanoidRootPart
-                    local goal = checkpoints[5] -- CP5
-                    local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear)
-                    local tween = TweenService:Create(hrp, tweenInfo, { CFrame = CFrame.new(goal) })
-                    tween:Play()
-                    tween.Completed:Wait()
-                end
+                enableFly()
+                
+                -- Tween ke CP5
+                local tweenInfo = TweenInfo.new(3, Enum.EasingStyle.Linear)
+                local tween = game:GetService("TweenService"):Create(player.Character.HumanoidRootPart, tweenInfo, {CFrame = CFrame.new(checkpoints[5])})
+                tween:Play()
+                tween.Completed:Wait()
 
                 if carriedChar then
                     teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
                 end
+
                 task.wait(1)
 
-                state.flyEnabled = false
+                -- Matikan fly
+                disableFly()
                 disableNoclip()
 
-            -- CP5: descend pelan ke finish (index 6)
-            elseif i == 5 then
+            elseif i == #checkpoints then
+                -- CP5 special: fly + noclip + descend
                 enableNoclip()
                 teleportCharacter(player.Character, pos)
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
                 task.wait(0.5)
-
-                local finishPos = checkpoints[6]
-                local y = pos.Y
-                while y > finishPos.Y do
-                    y = math.max(finishPos.Y, y - 10)
-                    local descendPos = Vector3.new(finishPos.X, y, finishPos.Z)
+                for y = 150, 0, -10 do
+                    local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
                     teleportCharacter(player.Character, descendPos)
                     if carriedChar then
                         teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
                     end
                     task.wait(0.2)
                 end
-
                 disableNoclip()
-
-            -- CP lainnya: teleport normal
             else
                 teleportCharacter(player.Character, pos)
                 if carriedChar then
@@ -142,13 +131,10 @@ local function summitLoop()
                 task.wait(1)
             end
         end
-
-        -- reset ulang ke CP1
         task.wait(1)
         teleportCharacter(player.Character, checkpoints[1])
-        local carriedChar2 = getCarriedCharacter()
-        if carriedChar2 then
-            teleportCharacter(carriedChar2, checkpoints[1] + Vector3.new(0, 0, 3))
+        if carriedChar then
+            teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
         end
         task.wait(1)
     end
