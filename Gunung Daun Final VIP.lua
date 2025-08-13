@@ -131,6 +131,9 @@ end
 
 local TweenService = game:GetService("TweenService")
 
+local tweenSpeed = 10 -- durasi per perpindahan CP (detik)
+local delayPerCP = 3 -- delay setelah nyampe CP (detik)
+
 local function flyToPosition(character, targetPos, duration)
     if character and character:FindFirstChild("HumanoidRootPart") then
         local hrp = character.HumanoidRootPart
@@ -151,28 +154,21 @@ function summitLoop()
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
 
-            if i < #checkpoints then
-                -- CP1 sampai CP4 normal teleport
-                teleportCharacter(player.Character, pos)
-                if carriedChar then
-                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
-                end
-                task.wait(2)
+            -- Noclip biar aman dari halangan
+            enableNoclip()
 
-                -- Kalau ini CP4, fly tween ke CP5
-                if i == #checkpoints - 1 then
-                    enableNoclip()
-                    flyToPosition(player.Character, checkpoints[i+1], 30) -- durasi 5 detik
-                    if carriedChar then
-                        flyToPosition(carriedChar, checkpoints[i+1] + Vector3.new(0, 0, 3), 5)
-                    end
-                    disableNoclip()
-                end
-
-            elseif i == #checkpoints then
-                -- Sampai CP5 (finish) → delay aman
-                task.wait(5)
+            -- Tween player ke CP
+            flyToPosition(player.Character, pos, tweenSpeed)
+            -- Tween carry player kalau ada
+            if carriedChar then
+                flyToPosition(carriedChar, pos + Vector3.new(0, 0, 3), tweenSpeed)
             end
+
+            -- Matikan noclip setelah nyampe
+            disableNoclip()
+
+            -- Delay aman sebelum lanjut
+            task.wait(delayPerCP)
         end
 
         -- Balik ke CP1 untuk loop
@@ -180,7 +176,7 @@ function summitLoop()
         if carriedChar then
             teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
         end
-        task.wait(2)
+        task.wait(1)
     end
 end
 
