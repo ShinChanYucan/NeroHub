@@ -131,8 +131,10 @@ end
 
 local TweenService = game:GetService("TweenService")
 
-local tweenSpeed = 10 -- durasi per perpindahan CP (detik)
-local delayPerCP = 3 -- delay setelah nyampe CP (detik)
+local tweenSpeed = 6 -- durasi per perpindahan CP (detik)
+local delayPerCP = 5 -- delay setelah nyampe CP (detik)
+local touchWait = 0.5 -- waktu minimal injak CP biar valid
+local touchRepeat = 3 -- berapa kali injak CP
 
 local function flyToPosition(character, targetPos, duration)
     if character and character:FindFirstChild("HumanoidRootPart") then
@@ -147,27 +149,47 @@ local function flyToPosition(character, targetPos, duration)
     end
 end
 
+local function touchCheckpoint(cpPart, character)
+    if not cpPart or not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    for _ = 1, touchRepeat do
+        -- Posisikan sedikit di bawah CP supaya trigger terpicu
+        hrp.CFrame = CFrame.new(cpPart.Position.X, cpPart.Position.Y - 1, cpPart.Position.Z)
+        task.wait(touchWait)
+    end
+end
+
 function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
 
-        for i, pos in ipairs(checkpoints) do
+        for i, cp in ipairs(checkpoints) do
             if not state.running then break end
 
-            -- Noclip biar aman dari halangan
+            -- Noclip biar aman
             enableNoclip()
 
-            -- Tween player ke CP
-            flyToPosition(player.Character, pos, tweenSpeed)
-            -- Tween carry player kalau ada
+            -- Tween player ke checkpoint
+            flyToPosition(player.Character, cp, tweenSpeed)
             if carriedChar then
-                flyToPosition(carriedChar, pos + Vector3.new(0, 0, 3), tweenSpeed)
+                flyToPosition(carriedChar, cp + Vector3.new(0, 0, 3), tweenSpeed)
             end
 
-            -- Matikan noclip setelah nyampe
+            -- Pastikan injak checkpoint part 3 kali
+            local cpPart = workspace:FindFirstChild("Checkpoint"..i)
+            if cpPart and cpPart:IsA("BasePart") then
+                touchCheckpoint(cpPart, player.Character)
+                if carriedChar then
+                    touchCheckpoint(cpPart, carriedChar)
+                end
+            end
+
+            -- Matikan noclip
             disableNoclip()
 
-            -- Delay aman sebelum lanjut
+            -- Delay aman
             task.wait(delayPerCP)
         end
 
