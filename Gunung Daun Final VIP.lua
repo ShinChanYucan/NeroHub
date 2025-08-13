@@ -131,9 +131,9 @@ end
 
 local TweenService = game:GetService("TweenService")
 
-local tweenSpeed = 5 -- durasi per perpindahan CP (detik)
+local tweenSpeed = 1.5 -- durasi per perpindahan CP (detik)
 local delayPerCP = 2 -- delay setelah nyampe CP (detik)
-local touchWait = 1 -- waktu minimal injak CP biar valid
+local touchWait = 0.02 -- waktu minimal injak CP biar valid
 local touchRepeat = 3 -- berapa kali injak CP
 
 local function flyToPosition(character, targetPos, duration)
@@ -149,7 +149,7 @@ local function flyToPosition(character, targetPos, duration)
     end
 end
 
--- Fungsi sentuh posisi triple
+-- Fungsi injak posisi triple
 local function touchCheckpointPos(pos, character, repeatCount, waitTime)
     if not pos or not character then return end
     local hrp = character:FindFirstChild("HumanoidRootPart")
@@ -169,32 +169,45 @@ function summitLoop()
 
             enableNoclip()
 
-            -- Tween ke checkpoint
-            flyToPosition(player.Character, cp, tweenSpeed)
-            if carriedChar then
-                flyToPosition(carriedChar, cp + Vector3.new(0,0,3), tweenSpeed)
-            end
+            if i <= 4 then
+                -- Teleport instan CP1–CP4
+                teleportCharacter(player.Character, cp)
+                if carriedChar then
+                    teleportCharacter(carriedChar, cp + Vector3.new(0,0,3))
+                end
+                touchCheckpointPos(cp, player.Character, 3, touchWait)
+                if carriedChar then
+                    touchCheckpointPos(cp + Vector3.new(0,0,3), carriedChar, 3, touchWait)
+                end
 
-            -- Injak checkpoint 3 kali
-            touchCheckpointPos(cp, player.Character, 3, touchWait)
-            if carriedChar then
-                touchCheckpointPos(cp + Vector3.new(0,0,3), carriedChar, 3, touchWait)
-            end
-
-            -- Setelah CP4, jalankan pancingan1 & pancingan2
-            if i == 4 then
-                local baitPositions = {
-                    Vector3.new(-2061.56079, 896.579407, -1765.66223),
-                    Vector3.new(-2917.52026, 1684.94409, -2482.86182)
-                }
-                for _, baitPos in ipairs(baitPositions) do
-                    flyToPosition(player.Character, baitPos, tweenSpeed)
-                    if carriedChar then
-                        flyToPosition(carriedChar, baitPos + Vector3.new(0,0,3), tweenSpeed)
+                -- Setelah CP4 langsung masuk rute tween pancingan & CP5
+                if i == 4 then
+                    local tweenRoute = {
+                        Vector3.new(-2061.56079, 896.579407, -1765.66223), -- Pancingan1
+                        Vector3.new(-2917.52026, 1684.94409, -2482.86182), -- Pancingan2
+                        checkpoints[5] -- CP5
+                    }
+                    for _, pos in ipairs(tweenRoute) do
+                        flyToPosition(player.Character, pos, tweenSpeed)
+                        if carriedChar then
+                            flyToPosition(carriedChar, pos + Vector3.new(0,0,3), tweenSpeed)
+                        end
+                        touchCheckpointPos(pos, player.Character, 3, touchWait)
+                        if carriedChar then
+                            touchCheckpointPos(pos + Vector3.new(0,0,3), carriedChar, 3, touchWait)
+                        end
                     end
-                    touchCheckpointPos(baitPos, player.Character, 3, touchWait)
-                    if carriedChar then
-                        touchCheckpointPos(baitPos + Vector3.new(0,0,3), carriedChar, 3, touchWait)
+
+                    -- Tween ke Finish
+                    if checkpoints[6] then
+                        flyToPosition(player.Character, checkpoints[6], tweenSpeed)
+                        if carriedChar then
+                            flyToPosition(carriedChar, checkpoints[6] + Vector3.new(0,0,3), tweenSpeed)
+                        end
+                        touchCheckpointPos(checkpoints[6], player.Character, 3, touchWait)
+                        if carriedChar then
+                            touchCheckpointPos(checkpoints[6] + Vector3.new(0,0,3), carriedChar, 3, touchWait)
+                        end
                     end
                 end
             end
@@ -203,10 +216,10 @@ function summitLoop()
             task.wait(delayPerCP)
         end
 
-        -- Kembali ke CP1 untuk loop ulang
+        -- Balik ke CP1 untuk loop
         teleportCharacter(player.Character, checkpoints[1])
         if carriedChar then
-            teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
+            teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0,0,3))
         end
         task.wait(1)
     end
