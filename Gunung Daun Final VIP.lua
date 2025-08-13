@@ -157,12 +157,12 @@ function summitLoop()
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                task.wait(2)
+                task.wait(5)
 
                 -- Kalau ini CP4, fly tween ke CP5
                 if i == #checkpoints - 1 then
                     enableNoclip()
-                    flyToPosition(player.Character, checkpoints[i+1], 5) -- durasi 5 detik
+                    flyToPosition(player.Character, checkpoints[i+1], 10) -- durasi 5 detik
                     if carriedChar then
                         flyToPosition(carriedChar, checkpoints[i+1] + Vector3.new(0, 0, 3), 5)
                     end
@@ -180,7 +180,7 @@ function summitLoop()
         if carriedChar then
             teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
         end
-        task.wait(2)
+        task.wait(5)
     end
 end
 
