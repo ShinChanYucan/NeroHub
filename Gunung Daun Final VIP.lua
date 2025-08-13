@@ -129,7 +129,6 @@ local function disableNoclip()
     end
 end
 
--- Perbaikan summitLoop dengan fly tween CP4 → CP5
 local TweenService = game:GetService("TweenService")
 
 local function flyToPosition(character, targetPos, duration)
@@ -148,29 +147,30 @@ end
 function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
-        
+
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
 
-            if i < #checkpoints - 1 then
-                -- CP1–CP3 normal teleport
+            if i < #checkpoints then
+                -- CP1 sampai CP4 normal teleport
                 teleportCharacter(player.Character, pos)
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                task.wait(1)
+                task.wait(2)
 
-            elseif i == #checkpoints - 1 then
-                -- CP4 → CP5 (fly tween)
-                enableNoclip()
-                flyToPosition(player.Character, checkpoints[i+1], 5) -- 5 detik
-                if carriedChar then
-                    flyToPosition(carriedChar, checkpoints[i+1] + Vector3.new(0, 0, 3), 5)
+                -- Kalau ini CP4, fly tween ke CP5
+                if i == #checkpoints - 1 then
+                    enableNoclip()
+                    flyToPosition(player.Character, checkpoints[i+1], 5) -- durasi 5 detik
+                    if carriedChar then
+                        flyToPosition(carriedChar, checkpoints[i+1] + Vector3.new(0, 0, 3), 5)
+                    end
+                    disableNoclip()
                 end
-                disableNoclip()
 
             elseif i == #checkpoints then
-                -- Sampai CP5 (Finish) → delay aman sebelum loop
+                -- Sampai CP5 (finish) → delay aman
                 task.wait(2)
             end
         end
@@ -180,7 +180,7 @@ function summitLoop()
         if carriedChar then
             teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
         end
-        task.wait(1)
+        task.wait(2)
     end
 end
 
