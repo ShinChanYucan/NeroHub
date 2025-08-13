@@ -131,9 +131,9 @@ end
 
 local TweenService = game:GetService("TweenService")
 
-local tweenSpeed = 6 -- durasi per perpindahan CP (detik)
-local delayPerCP = 5 -- delay setelah nyampe CP (detik)
-local touchWait = 0.5 -- waktu minimal injak CP biar valid
+local tweenSpeed = 5 -- durasi per perpindahan CP (detik)
+local delayPerCP = 2 -- delay setelah nyampe CP (detik)
+local touchWait = 1 -- waktu minimal injak CP biar valid
 local touchRepeat = 3 -- berapa kali injak CP
 
 local function flyToPosition(character, targetPos, duration)
