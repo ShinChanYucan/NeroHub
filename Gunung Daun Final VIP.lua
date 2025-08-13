@@ -149,15 +149,14 @@ local function flyToPosition(character, targetPos, duration)
     end
 end
 
-local function touchCheckpoint(cpPart, character)
-    if not cpPart or not character then return end
+-- Fungsi sentuh posisi triple
+local function touchCheckpointPos(pos, character, repeatCount, waitTime)
+    if not pos or not character then return end
     local hrp = character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-
-    for _ = 1, touchRepeat do
-        -- Posisikan sedikit di bawah CP supaya trigger terpicu
-        hrp.CFrame = CFrame.new(cpPart.Position.X, cpPart.Position.Y - 1, cpPart.Position.Z)
-        task.wait(touchWait)
+    for _ = 1, repeatCount do
+        hrp.CFrame = CFrame.new(pos.X, pos.Y - 1, pos.Z)
+        task.wait(waitTime)
     end
 end
 
@@ -168,32 +167,43 @@ function summitLoop()
         for i, cp in ipairs(checkpoints) do
             if not state.running then break end
 
-            -- Noclip biar aman
             enableNoclip()
 
-            -- Tween player ke checkpoint
+            -- Tween ke checkpoint
             flyToPosition(player.Character, cp, tweenSpeed)
             if carriedChar then
-                flyToPosition(carriedChar, cp + Vector3.new(0, 0, 3), tweenSpeed)
+                flyToPosition(carriedChar, cp + Vector3.new(0,0,3), tweenSpeed)
             end
 
-            -- Pastikan injak checkpoint part 3 kali
-            local cpPart = workspace:FindFirstChild("Checkpoint"..i)
-            if cpPart and cpPart:IsA("BasePart") then
-                touchCheckpoint(cpPart, player.Character)
-                if carriedChar then
-                    touchCheckpoint(cpPart, carriedChar)
+            -- Injak checkpoint 3 kali
+            touchCheckpointPos(cp, player.Character, 3, touchWait)
+            if carriedChar then
+                touchCheckpointPos(cp + Vector3.new(0,0,3), carriedChar, 3, touchWait)
+            end
+
+            -- Setelah CP4, jalankan pancingan1 & pancingan2
+            if i == 4 then
+                local baitPositions = {
+                    Vector3.new(-2061.56079, 896.579407, -1765.66223),
+                    Vector3.new(-2917.52026, 1684.94409, -2482.86182)
+                }
+                for _, baitPos in ipairs(baitPositions) do
+                    flyToPosition(player.Character, baitPos, tweenSpeed)
+                    if carriedChar then
+                        flyToPosition(carriedChar, baitPos + Vector3.new(0,0,3), tweenSpeed)
+                    end
+                    touchCheckpointPos(baitPos, player.Character, 3, touchWait)
+                    if carriedChar then
+                        touchCheckpointPos(baitPos + Vector3.new(0,0,3), carriedChar, 3, touchWait)
+                    end
                 end
             end
 
-            -- Matikan noclip
             disableNoclip()
-
-            -- Delay aman
             task.wait(delayPerCP)
         end
 
-        -- Balik ke CP1 untuk loop
+        -- Kembali ke CP1 untuk loop ulang
         teleportCharacter(player.Character, checkpoints[1])
         if carriedChar then
             teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
