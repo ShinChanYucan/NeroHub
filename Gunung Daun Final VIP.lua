@@ -14,18 +14,21 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local StarterGui = game:GetService("StarterGui")
-local TweenService = game:GetService("TweenService")
-local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
 
--- Global State
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- State management
 local state = {
+    EnableJump = false,
+    JumpPower = 50,
     running = false,
     infJump = false,
     espEnabled = false,
     noclipEnabled = false,
     flyEnabled = false,
     flySpeed = 1,
+    speedHackEnabled = false,
     normalWalkSpeed = 16,
     speedHackValue = 18,
     adminTitleEnabled = false,
@@ -66,42 +69,38 @@ end
 
 -- Get carried player character if near
 local function getCarriedCharacter()
-    local nearest = nil
-    local nearestDist = math.huge
-    for _, plr in ipairs(Players:GetPlayers()) do
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local myChar = player.Character
-            if myChar and myChar:FindFirstChild("HumanoidRootPart") then
-                local d = (plr.Character.HumanoidRootPart.Position - myChar.HumanoidRootPart.Position).Magnitude
-                if d < 8 and d < nearestDist then
-                    nearest = plr.Character
-                    nearestDist = d
-                end
+            local dist = (plr.Character.HumanoidRootPart.Position - hrp.Position).Magnitude
+            if dist < 8 then
+                return plr.Character
             end
         end
     end
-    return nearest
+    return nil
 end
 
--- Find by display name or username
-local function findPlayerByName(search)
-    if not search or search == "" then return nil end
-    local lowerSearch = search:lower()
-
-    -- Exact matches first
+-- == Fixed Player Finding Function ==
+local function findPlayerByName(searchName)
+    if not searchName or searchName == "" then return nil end
+    local lowerSearch = searchName:lower()
+    
+    -- First try exact username match
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name:lower() == lowerSearch or plr.DisplayName:lower() == lowerSearch then
+        if plr.Name:lower() == lowerSearch then
             return plr
         end
     end
-
-    -- Then startswith
+    
+    -- Then try display name match
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr.Name:lower():sub(1, #lowerSearch) == lowerSearch or plr.DisplayName:lower():sub(1, #lowerSearch) == lowerSearch then
+        if plr.DisplayName:lower() == lowerSearch then
             return plr
         end
     end
-
+    
     -- Finally try partial matches
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr.Name:lower():find(lowerSearch) or plr.DisplayName:lower():find(lowerSearch) then
@@ -117,17 +116,10 @@ local noclipConnection = nil
 local function enableNoclip()
     if noclipConnection then return end
     noclipConnection = RunService.Stepped:Connect(function()
-        if state.noclipEnabled then return end -- safety
-        local char = player.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") and part.CanCollide then
-                    part.CanCollide = false
-                end
-            end
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(11)
         end
     end)
-    state.noclipEnabled = true
 end
 
 local function disableNoclip()
@@ -135,73 +127,41 @@ local function disableNoclip()
         noclipConnection:Disconnect()
         noclipConnection = nil
     end
-    state.noclipEnabled = false
 end
 
 -- Summit Loop with carry support
 local function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
-        for i, pos in ipairs(checkpoints) do
+        -- CP1 to CP4 normal
+        for i = 1, 4 do
             if not state.running then break end
-            local __ok,__err=pcall(function()
-
-            if i == #checkpoints then
-                -- CP5 special: fly + noclip + descend
-                enableNoclip()
-                teleportCharacter(player.Character, pos)
-                if carriedChar then
-                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
-                end
-                task.wait(0.5)
-                for y = 150, 0, -10 do
-                    local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
-                    teleportCharacter(player.Character, descendPos)
-                    if carriedChar then
-                        teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
-                    end
-                    task.wait(0.2)
-                end
-                disableNoclip()
-            else
-                teleportCharacter(player.Character, pos)
-                if carriedChar then
-                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
-                end
-                if i == 4 then
-                    enableNoclip()
-                    local startPos = pos
-                    local targetPos = checkpoints[5]
-                    local steps = 50
-                    for s = 1, steps do
-                        if not state.running then break end
-                        local alpha = s/steps
-                        local lerpPos = Vector3.new(
-                            startPos.X + (targetPos.X - startPos.X)*alpha,
-                            startPos.Y + (targetPos.Y - startPos.Y)*alpha,
-                            startPos.Z + (targetPos.Z - startPos.Z)*alpha
-                        )
-                        teleportCharacter(player.Character, lerpPos)
-                        if carriedChar then
-                            teleportCharacter(carriedChar, lerpPos + Vector3.new(0, 0, 3))
-                        end
-                        task.wait(0.03)
-                    end
-                end
-                task.wait(1)
+            teleportCharacter(player.Character, checkpoints[i])
+            if carriedChar then
+                teleportCharacter(carriedChar, checkpoints[i] + Vector3.new(0, 0, 3))
             end
-            end)
+            task.wait(1)
         end
-        task.wait(1)
-        teleportCharacter(player.Character, checkpoints[1])
+        if not state.running then break end
+        -- Delay 2 minutes at CP4
+        task.wait(120)
+        -- TP CP5
+        teleportCharacter(player.Character, checkpoints[5])
         if carriedChar then
-            teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
+            teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
         end
         task.wait(1)
+        -- Finish point (assume last point defined separately)
+        if finishPoint then
+            teleportCharacter(player.Character, finishPoint)
+            if carriedChar then
+                teleportCharacter(carriedChar, finishPoint + Vector3.new(0, 0, 3))
+            end
+        end
     end
 end
 
--- Infinity Jump
+-- == Infinity Jump ==
 UserInputService.JumpRequest:Connect(function()
     if state.infJump and player.Character then
         local h = player.Character:FindFirstChildOfClass("Humanoid")
@@ -219,225 +179,81 @@ local function createHighlightFor(plr)
     highlight.Name = "NERO_ESP"
     highlight.Adornee = char
     highlight.FillTransparency = 0.6
-    highlight.FillColor = Color3.fromRGB(0, 170, 255)
+    highlight.FillColor = Color3.fromRGB(255, 60, 60)
     highlight.OutlineColor = Color3.fromRGB(255,255,255)
     highlight.Parent = char
-    
-    espTable[plr] = { Highlight = highlight }
+    espTable[plr] = {Highlight = highlight}
 end
 
 local function removeHighlightFor(plr)
     if espTable[plr] and espTable[plr].Highlight then
-        espTable[plr].Highlight:Destroy()
-        espTable[plr] = nil
+        pcall(function() espTable[plr].Highlight:Destroy() end)
     end
+    espTable[plr] = nil
 end
 
 local function setESP(enabled)
     state.espEnabled = enabled
     if enabled then
         for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= player then createHighlightFor(plr) end
+            if plr ~= player then
+                createHighlightFor(plr)
+            end
         end
     else
-        for plr, _ in pairs(espTable) do
-            removeHighlightFor(plr)
-        end
+        for k, _ in pairs(espTable) do removeHighlightFor(k) end
     end
 end
 
 Players.PlayerAdded:Connect(function(plr)
-    if state.espEnabled then createHighlightFor(plr) end
+    plr.CharacterAdded:Connect(function()
+        task.wait(0.8)
+        if state.espEnabled then createHighlightFor(plr) end
+    end)
 end)
-Players.PlayerRemoving:Connect(function(plr)
-    removeHighlightFor(plr)
-end)
+Players.PlayerRemoving:Connect(function(plr) removeHighlightFor(plr) end)
 
--- == Admin Title ==
-local function enableAdminTitle()
-    if adminGui then return end
-    adminGui = Instance.new("BillboardGui")
-    adminGui.Size = UDim2.new(0, 200, 0, 50)
-    adminGui.StudsOffset = Vector3.new(0, 3, 0)
-    adminGui.AlwaysOnTop = true
-    adminGui.Name = "NERO_Admin_Title"
-
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = "Admin"
-    label.TextColor3 = Color3.fromRGB(0, 170, 255)
-    label.TextStrokeTransparency = 0.5
-    label.Font = Enum.Font.SourceSansBold
-    label.TextScaled = true
-    label.Parent = adminGui
-
-    adminGui.Parent = player.Character or player.CharacterAdded:Wait()
-end
-
-local function disableAdminTitle()
-    if adminGui then
-        adminGui:Destroy()
-        adminGui = nil
-    end
-end
-
--- == Fly (InfinityYield-Style) ==
-local FlyModule = {}
-do
-    local v3inf = Vector3.new(math.huge, math.huge, math.huge)
-    local v3none = Vector3.new(0, 0, 0)
-    local VelocityHandlerName = "NERO_Fly_Velocity"
-    local GyroHandlerName = "NERO_Fly_Gyro"
-
-    local controlModule = nil
-    local function getControlModule()
-        local plrScripts = player:FindFirstChildOfClass("PlayerScripts")
-        if not plrScripts then return nil end
-        for _, m in ipairs(plrScripts:GetDescendants()) do
-            if m:IsA("ModuleScript") and m.Name == "ControlModule" then
-                local ok, ret = pcall(function() return require(m) end)
-                if ok then return ret end
+-- == Noclip for body parts ==
+RunService.Stepped:Connect(function()
+    if state.noclipEnabled and player and player.Character then
+        for _, p in ipairs(player.Character:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanCollide = false
             end
         end
-        return nil
     end
+end)
 
-    local function ensureHandlers()
-        local char = player.Character
-        if not char then return nil, nil, nil end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local humanoid = char:FindFirstChildWhichIsA("Humanoid")
-        if not root or not humanoid then return nil, nil, nil end
-
-        local v = root:FindFirstChild(VelocityHandlerName) or Instance.new("BodyVelocity")
-        v.Name = VelocityHandlerName
-        v.MaxForce = v3none
-        v.P = 1250
-        v.Velocity = v3none
-        v.Parent = root
-
-        local g = root:FindFirstChild(GyroHandlerName) or Instance.new("BodyGyro")
-        g.Name = GyroHandlerName
-        g.MaxTorque = v3none
-        g.P = 3000
-        g.CFrame = root.CFrame
-        g.Parent = root
-
-        return humanoid, v, g
-    end
-
-    function FlyModule.start()
-        if state.flyEnabled then return end
-        state.flyEnabled = true
-        controlModule = getControlModule()
-
-        local char = player.Character or player.CharacterAdded:Wait()
-        local root = char:FindFirstChild("HumanoidRootPart")
-        local h = char:FindFirstChildWhichIsA("Humanoid")
-        if not root or not h then return end
-
-        local VelocityHandler, GyroHandler
-
-        local heartbeatConn
-        heartbeatConn = RunService.Stepped:Connect(function(_, step)
-            if not state.flyEnabled or not player.Character then
-                if heartbeatConn then heartbeatConn:Disconnect() heartbeatConn = nil end
-                return
-            end
-
-            -- Re-ensure
-            local speaker = player
-            if speaker.Character and speaker.Character:FindFirstChild("HumanoidRootPart") then
-                local root = speaker.Character:FindFirstChild("HumanoidRootPart")
-                local velocityHandlerName = "NERO_Fly_Velocity"
-                local gyroHandlerName = "NERO_Fly_Gyro"
-
-                if root and root:FindFirstChild(velocityHandlerName) and root:FindFirstChild(gyroHandlerName) then
-                    local humanoid = speaker.Character:FindFirstChildWhichIsA("Humanoid")
-                    local VelocityHandler = root:FindFirstChild(velocityHandlerName)
-                    local GyroHandler = root:FindFirstChild(gyroHandlerName)
-
-                    VelocityHandler.MaxForce = v3inf
-                    GyroHandler.MaxTorque = v3inf
-                    if not vfly then pcall(function() humanoid.PlatformStand = true end) end
-                    GyroHandler.CFrame = camera.CFrame
-                    VelocityHandler.Velocity = v3none
-
-                    local direction = Vector3.new()
-                    if controlModule then
-                        local dv = controlModule:GetMoveVector()
-                        direction = Vector3.new(dv.X, 0, dv.Z)
-                    end
-
-                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then direction = direction + camera.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then direction = direction - camera.CFrame.LookVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then direction = direction - camera.CFrame.RightVector end
-                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then direction = direction + camera.CFrame.RightVector end
-
-                    if UserInputService:IsKeyDown(Enum.KeyCode.E) or state.verticalFly == 1 then
-                        direction = direction + Vector3.new(0, 1, 0)
-                    elseif UserInputService:IsKeyDown(Enum.KeyCode.Q) or state.verticalFly == -1 then
-                        direction = direction - Vector3.new(0, 1, 0)
-                    end
-
-                    if direction.Magnitude > 0 then
-                        direction = direction.Unit * (50 * (state.flySpeed or 1))
-                    end
-
-                    VelocityHandler.Velocity = direction
-                end
-            end
-        end)
-    end
-
-    function FlyModule.stop()
-        if not state.flyEnabled then return end
-        state.flyEnabled = false
-        local char = player.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
-        local v = root:FindFirstChild(VelocityHandlerName)
-        local g = root:FindFirstChild(GyroHandlerName)
-        if v then v:Destroy() end
-        if g then g:Destroy() end
-        local h = char:FindFirstChildWhichIsA("Humanoid")
-        if h then pcall(function() h.PlatformStand = false end) end
-    end
-
-    function FlyModule.setSpeed(n)
-        state.flySpeed = n
-    end
+-- === Mobile Fly Buttons ===
+local function removeFlyButtons()
+    if flyGui then pcall(function() flyGui:Destroy() end) end
+    flyGui, ascendBtn, descendBtn = nil, nil, nil
 end
 
--- Mobile Fly GUI
-local function createFlyGui()
-    if flyGui then return end
+local function createFlyButtons()
+    removeFlyButtons()
     flyGui = Instance.new("ScreenGui")
-    flyGui.Name = "NERO_FlyGUI"
+    flyGui.Name = "NERO_FlyGui"
     flyGui.ResetOnSpawn = false
-    flyGui.IgnoreGuiInset = true
-    flyGui.Parent = player:WaitForChild("PlayerGui")
+    flyGui.Parent = playerGui
 
     ascendBtn = Instance.new("TextButton")
-    ascendBtn.Size = UDim2.new(0, 80, 0, 80)
-    ascendBtn.Position = UDim2.new(1, -90, 1, -180)
-    ascendBtn.Text = "↑"
+    ascendBtn.Name = "AscendBtn"
+    ascendBtn.Size = UDim2.new(0, 60, 0, 60)
+    ascendBtn.Position = UDim2.new(1, -170, 1, -200)
+    ascendBtn.AnchorPoint = Vector2.new(1, 1)
+    ascendBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    ascendBtn.BackgroundTransparency = 0.1
+    ascendBtn.Text = "▲"
+    ascendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     ascendBtn.TextScaled = true
-    ascendBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-    ascendBtn.TextColor3 = Color3.new(1,1,1)
+    ascendBtn.Font = Enum.Font.SourceSansBold
     ascendBtn.Parent = flyGui
-
-    descendBtn = Instance.new("TextButton")
-    descendBtn.Size = UDim2.new(0, 80, 0, 80)
-    descendBtn.Position = UDim2.new(1, -90, 1, -90)
-    descendBtn.Text = "↓"
-    descendBtn.TextScaled = true
-    descendBtn.BackgroundColor3 = Color3.fromRGB(50,50,50)
-    descendBtn.TextColor3 = Color3.new(1,1,1)
-    descendBtn.Parent = flyGui
-
+    
+    local ascendCorner = Instance.new("UICorner")
+    ascendCorner.CornerRadius = UDim.new(0, 10)
+    ascendCorner.Parent = ascendBtn
+    
     ascendBtn.InputBegan:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
             state.verticalFly = 1
@@ -450,6 +266,23 @@ local function createFlyGui()
         end
     end)
 
+    descendBtn = Instance.new("TextButton")
+    descendBtn.Name = "DescendBtn"
+    descendBtn.Size = UDim2.new(0, 60, 0, 60)
+    descendBtn.Position = UDim2.new(1, -170, 1, -130)
+    descendBtn.AnchorPoint = Vector2.new(1, 1)
+    descendBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
+    descendBtn.BackgroundTransparency = 0.1
+    descendBtn.Text = "▼"
+    descendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    descendBtn.TextScaled = true
+    descendBtn.Font = Enum.Font.SourceSansBold
+    descendBtn.Parent = flyGui
+    
+    local descendCorner = Instance.new("UICorner")
+    descendCorner.CornerRadius = UDim.new(0, 10)
+    descendCorner.Parent = descendBtn
+    
     descendBtn.InputBegan:Connect(function(inp)
         if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
             state.verticalFly = -1
@@ -463,173 +296,377 @@ local function createFlyGui()
     end)
 end
 
-local function removeFlyGui()
-    if flyGui then
-        flyGui:Destroy()
-        flyGui = nil
-        ascendBtn, descendBtn = nil, nil
+-- === Anti-Reset Speed Hack ===
+RunService.RenderStepped:Connect(function()
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        local h = player.Character:FindFirstChildOfClass("Humanoid")
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        
+        if h and state.speedHackEnabled then
+            pcall(function() h.WalkSpeed = state.speedHackValue end)
+            -- Backup with velocity if WalkSpeed gets reset
+            if hrp and h.WalkSpeed ~= state.speedHackValue then
+                local moveDir = Vector3.zero
+                if h.MoveDirection and h.MoveDirection.Magnitude > 0 then
+                    moveDir = h.MoveDirection.Unit
+                else
+                    moveDir = hrp.CFrame.LookVector
+                end
+                if moveDir.Magnitude > 0 then
+                    hrp.AssemblyLinearVelocity = Vector3.new(moveDir.X * state.speedHackValue, hrp.AssemblyLinearVelocity.Y, moveDir.Z * state.speedHackValue)
+                end
+            end
+        elseif h and not state.speedHackEnabled then
+            pcall(function() h.WalkSpeed = state.normalWalkSpeed end)
+        end
     end
+end)
+
+-- === InfinityYield-style Fly Module ===
+local FlyModule = (function()
+    local IYMouse = player:GetMouse()
+
+    local function getRoot(char)
+        if not char then return nil end
+        return char:FindFirstChild('HumanoidRootPart') or char:FindFirstChild('Torso') or char:FindFirstChild('UpperTorso')
+    end
+
+    local FLYING = false
+    local QEfly = true
+    local iyflyspeed = 1
+    local vehicleflyspeed = 1
+    local flyKeyDown, flyKeyUp
+    local mfly1, mfly2
+
+    local function sFLY(vfly)
+        repeat task.wait() until player and player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        repeat task.wait() until IYMouse
+
+        if flyKeyDown or flyKeyUp then
+            pcall(function()
+                if flyKeyDown then flyKeyDown:Disconnect() end
+                if flyKeyUp then flyKeyUp:Disconnect() end
+            end)
+        end
+
+        local T = getRoot(player.Character)
+        if not T then return end
+        local CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+        local lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+        local SPEED = 0
+
+        local function FLY()
+            FLYING = true
+            local BG = Instance.new('BodyGyro')
+            local BV = Instance.new('BodyVelocity')
+            BG.P = 9e4
+            BG.Parent = T
+            BV.Parent = T
+            BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+            BG.CFrame = T.CFrame
+            BV.Velocity = Vector3.new(0, 0, 0)
+            BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+            task.spawn(function()
+                repeat task.wait()
+                    if not vfly and player.Character:FindFirstChildOfClass('Humanoid') then
+                        pcall(function() player.Character:FindFirstChildOfClass('Humanoid').PlatformStand = true end)
+                    end
+                    if CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0 then
+                        SPEED = 50
+                    elseif not (CONTROL.L + CONTROL.R ~= 0 or CONTROL.F + CONTROL.B ~= 0 or CONTROL.Q + CONTROL.E ~= 0) and SPEED ~= 0 then
+                        SPEED = 0
+                    end
+                    if (CONTROL.L + CONTROL.R) ~= 0 or (CONTROL.F + CONTROL.B) ~= 0 or (CONTROL.Q + CONTROL.E) ~= 0 then
+                        BV.Velocity = ((workspace.CurrentCamera.CFrame.lookVector * (CONTROL.F + CONTROL.B)) + (workspace.CurrentCamera.CFrame.rightVector * (CONTROL.L + CONTROL.R)) + Vector3.new(0, (CONTROL.Q + CONTROL.E) * 0.2, 0)) * SPEED
+                        lCONTROL = {F = CONTROL.F, B = CONTROL.B, L = CONTROL.L, R = CONTROL.R, Q = CONTROL.Q, E = CONTROL.E}
+                    elseif (CONTROL.L + CONTROL.R) == 0 and (CONTROL.F + CONTROL.B) == 0 and (CONTROL.Q + CONTROL.E) == 0 and SPEED ~= 0 then
+                        BV.Velocity = ((workspace.CurrentCamera.CFrame.lookVector * (lCONTROL.F + lCONTROL.B)) + (workspace.CurrentCamera.CFrame.rightVector * (lCONTROL.L + lCONTROL.R)) + Vector3.new(0, (lCONTROL.Q + lCONTROL.E) * 0.2, 0)) * SPEED
+                    else
+                        BV.Velocity = Vector3.new(0, 0, 0)
+                    end
+                    BG.CFrame = workspace.CurrentCamera.CFrame
+                until not FLYING
+                CONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+                lCONTROL = {F = 0, B = 0, L = 0, R = 0, Q = 0, E = 0}
+                SPEED = 0
+                pcall(function() BG:Destroy() end)
+                pcall(function() BV:Destroy() end)
+                if player.Character:FindFirstChildOfClass('Humanoid') then
+                    player.Character:FindFirstChildOfClass('Humanoid').PlatformStand = false
+                end
+            end)
+        end
+
+        flyKeyDown = IYMouse.KeyDown:Connect(function(KEY)
+            local key = KEY:lower()
+            if key == 'w' then
+                CONTROL.F = (vfly and vehicleflyspeed or iyflyspeed)
+            elseif key == 's' then
+                CONTROL.B = -(vfly and vehicleflyspeed or iyflyspeed)
+            elseif key == 'a' then
+                CONTROL.L = -(vfly and vehicleflyspeed or iyflyspeed)
+            elseif key == 'd' then
+                CONTROL.R = (vfly and vehicleflyspeed or iyflyspeed)
+            elseif QEfly and key == 'e' then
+                CONTROL.Q = (vfly and vehicleflyspeed or iyflyspeed)*2
+            elseif QEfly and key == 'q' then
+                CONTROL.E = -(vfly and vehicleflyspeed or iyflyspeed)*2
+            end
+            pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Track end)
+        end)
+
+        flyKeyUp = IYMouse.KeyUp:Connect(function(KEY)
+            local key = KEY:lower()
+            if key == 'w' then CONTROL.F = 0
+            elseif key == 's' then CONTROL.B = 0
+            elseif key == 'a' then CONTROL.L = 0
+            elseif key == 'd' then CONTROL.R = 0
+            elseif key == 'e' then CONTROL.Q = 0
+            elseif key == 'q' then CONTROL.E = 0 end
+        end)
+
+        FLY()
+    end
+
+    local function NOFLY()
+        FLYING = false
+        pcall(function()
+            if flyKeyDown then flyKeyDown:Disconnect() end
+            if flyKeyUp then flyKeyUp:Disconnect() end
+        end)
+        if player.Character and player.Character:FindFirstChildOfClass('Humanoid') then
+            pcall(function() player.Character:FindFirstChildOfClass('Humanoid').PlatformStand = false end)
+        end
+        pcall(function() workspace.CurrentCamera.CameraType = Enum.CameraType.Custom end)
+    end
+
+    -- Mobile fly helpers
+    local velocityHandlerName = "_iy_fly_v"
+    local gyroHandlerName = "_iy_fly_g"
+
+    local function unmobilefly(speaker)
+        pcall(function()
+            if not (speaker and speaker.Character) then return end
+            local root = getRoot(speaker.Character)
+            if root and root:FindFirstChild(velocityHandlerName) then root:FindFirstChild(velocityHandlerName):Destroy() end
+            if root and root:FindFirstChild(gyroHandlerName) then root:FindFirstChild(gyroHandlerName):Destroy() end
+            if speaker.Character:FindFirstChildWhichIsA("Humanoid") then
+                speaker.Character:FindFirstChildWhichIsA("Humanoid").PlatformStand = false
+            end
+            if mfly1 then mfly1:Disconnect() mfly1 = nil end
+            if mfly2 then mfly2:Disconnect() mfly2 = nil end
+        end)
+    end
+
+    local function mobilefly(speaker, vfly)
+        pcall(function() unmobilefly(speaker) end)
+        FLYING = true
+        if not (speaker and speaker.Character) then return end
+        local root = getRoot(speaker.Character)
+        if not root then return end
+        local camera = workspace.CurrentCamera
+        local v3none = Vector3.new()
+        local v3zero = Vector3.new(0, 0, 0)
+        local v3inf = Vector3.new(9e9, 9e9, 9e9)
+
+        local controlModule = nil
+        pcall(function()
+            if speaker.PlayerScripts and speaker.PlayerScripts:FindFirstChild("PlayerModule") then
+                controlModule = require(speaker.PlayerScripts:WaitForChild("PlayerModule"):WaitForChild("ControlModule"))
+            end
+        end)
+
+        local bv = Instance.new("BodyVelocity")
+        bv.Name = velocityHandlerName
+        bv.Parent = root
+        bv.MaxForce = v3zero
+        bv.Velocity = v3zero
+
+        local bg = Instance.new("BodyGyro")
+        bg.Name = gyroHandlerName
+        bg.Parent = root
+        bg.MaxTorque = v3inf
+        bg.P = 1000
+        bg.D = 50
+
+        mfly2 = RunService.RenderStepped:Connect(function()
+            root = getRoot(speaker.Character)
+            camera = workspace.CurrentCamera
+            if speaker.Character and speaker.Character:FindFirstChildWhichIsA("Humanoid") and root and root:FindFirstChild(velocityHandlerName) and root:FindFirstChild(gyroHandlerName) then
+                local humanoid = speaker.Character:FindFirstChildWhichIsA("Humanoid")
+                local VelocityHandler = root:FindFirstChild(velocityHandlerName)
+                local GyroHandler = root:FindFirstChild(gyroHandlerName)
+
+                VelocityHandler.MaxForce = v3inf
+                GyroHandler.MaxTorque = v3inf
+                if not vfly then pcall(function() humanoid.PlatformStand = true end) end
+                GyroHandler.CFrame = camera.CFrame
+                VelocityHandler.Velocity = v3none
+
+                local direction = Vector3.new()
+                if controlModule then
+                    local dv = controlModule:GetMoveVector()
+                    direction = Vector3.new(dv.X, 0, dv.Z)
+                else
+                    if humanoid and humanoid.MoveDirection and humanoid.MoveDirection.Magnitude > 0 then
+                        direction = Vector3.new(humanoid.MoveDirection.X, 0, humanoid.MoveDirection.Z)
+                    end
+                end
+
+                if direction.X ~= 0 then
+                    VelocityHandler.Velocity = VelocityHandler.Velocity + camera.CFrame.rightVector * (direction.X * ((vfly and vehicleflyspeed or iyflyspeed) * 50))
+                end
+                if direction.Z ~= 0 then
+                    VelocityHandler.Velocity = VelocityHandler.Velocity - camera.CFrame.lookVector * (direction.Z * ((vfly and vehicleflyspeed or iyflyspeed) * 50))
+                end
+                if state.verticalFly ~= 0 then
+                    VelocityHandler.Velocity = VelocityHandler.Velocity + Vector3.new(0, state.verticalFly * ((vfly and vehicleflyspeed or iyflyspeed) * 50), 0)
+                end
+            end
+        end)
+    end
+
+    return {
+        sFLY = sFLY,
+        NOFLY = NOFLY,
+        mobilefly = mobilefly,
+        unmobilefly = unmobilefly,
+        setSpeed = function(n) iyflyspeed = n end,
+        setVehicleSpeed = function(n) vehicleflyspeed = n end,
+    }
+end)()
+
+-- === Character Respawn Handler ===
+player.CharacterAdded:Connect(function(char)
+    task.wait(0.6)
+
+    -- Re-apply speed settings
+    if state.speedHackEnabled then
+        task.wait(0.2)
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = state.speedHackValue
+        end
+    else
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = state.normalWalkSpeed
+        end
+    end
+    
+    -- Re-apply fly if enabled
+    if state.flyEnabled then
+        task.wait(0.5)
+        if UserInputService.TouchEnabled then
+            FlyModule.mobilefly(player, false)
+            createFlyButtons()
+        else
+            FlyModule.sFLY(false)
+        end
+    end
+    
+    -- Re-apply admin title if enabled
+    if state.adminTitleEnabled then
+        task.delay(0.1, function()
+            if state.adminTitleEnabled then
+                createAdminTitle()
+            end
+        end)
+    end
+end)
+
+-- == Fake Admin Title ==
+local function removeAdminTitle()
+    if adminGui and adminGui.Parent then
+        pcall(function() adminGui:Destroy() end)
+    end
+    adminGui = nil
 end
 
--- == UI (Rayfield) ==
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-local Window = Rayfield:CreateWindow({
-    Name = "🛡️ ShieldTeam | NERO",
-    LoadingTitle = "NERO - Final Ultimate",
-    LoadingSubtitle = "Rayfield UI"
-})
+local function createAdminTitle()
+    removeAdminTitle()
+    if not (player and player.Character) then return end
+    local char = player.Character
+    local head = char:FindFirstChild("Head")
+    if not head then return end
 
--- Tabs
-local MainTab = Window:CreateTab("Main", 4483362458)
-local MovementTab = Window:CreateTab("Movement", 4483362458)
-local ESPTab = Window:CreateTab("ESP", 4483362458)
-local SpecialTab = Window:CreateTab("Special", 4483362458)
-local AutoTab = Window:CreateTab("Auto Summit", 4483362458)
-local ManualTab = nil -- will set later
-local SettingsTab = Window:CreateTab("Settings", 4483362458)
-local InfoTab = Window:CreateTab("Info", 4483362458)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "NERO_AdminTitle"
+    billboard.Adornee = head
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 200, 0, 40)
+    billboard.StudsOffset = Vector3.new(0, 2.1, 0)
+    billboard.LightInfluence = 0
 
--- Movement Tab
-MovementTab:CreateToggle({
-    Name = "Enable Fly",
-    CurrentValue = false,
-    Callback = function(v)
-        if v then
-            FlyModule.start()
-            createFlyGui()
-        else
-            FlyModule.stop()
-            removeFlyGui()
-        end
-    end
-})
+    local txt = Instance.new("TextLabel")
+    txt.Name = "TitleLabel"
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Text = "Admin"
+    txt.TextColor3 = Color3.fromRGB(0, 102, 255)
+    txt.TextStrokeTransparency = 0
+    txt.TextScaled = true
+    txt.Font = Enum.Font.SourceSansBold
+    txt.Parent = billboard
 
-MovementTab:CreateInput({
-    Name = "Fly Speed",
-    PlaceholderText = "e.g. 1",
-    Callback = function(val)
-        local n = tonumber(val)
-        if n and n > 0 then
-            state.flySpeed = n
-            FlyModule.setSpeed(n)
-            Rayfield:Notify({Title="Fly", Content="Fly speed set to: " .. n, Duration=2})
-        end
-    end
-})
+    billboard.Parent = head
+    adminGui = billboard
+end
 
--- ESP Tab
-ESPTab:CreateToggle({
-    Name = "ESP Player",
-    CurrentValue = false,
-    Callback = function(v)
-        setESP(v)
-        Rayfield:Notify({Title="ESP", Content="ESP ".. (v and "enabled" or "disabled"), Duration=2})
-    end
-})
+-- === Mobile Jump Button ===
+local function removeJumpButton()
+    if jumpGui then pcall(function() jumpGui:Destroy() end) end
+    jumpGui, jumpButton = nil, nil
+end
 
--- Special Tab: Admin Title, Speed Hack, Quick TPs, Manual Teleport to Player
-SpecialTab:CreateToggle({
-    Name = "Fake Blue Admin Title",
-    CurrentValue = false,
-    Callback = function(v)
-        state.adminTitleEnabled = v
-        if v then enableAdminTitle() else disableAdminTitle() end
-        Rayfield:Notify({Title="Admin", Content="Admin title ".. (v and "enabled" or "disabled"), Duration=2})
-    end
-})
+local function createJumpButton()
+    removeJumpButton()
+    jumpGui = Instance.new("ScreenGui")
+    jumpGui.Name = "NERO_JumpGui"
+    jumpGui.ResetOnSpawn = false
+    jumpGui.Parent = playerGui
 
-SpecialTab:CreateToggle({
-    Name = "Anti-Reset Speed Hack",
-    CurrentValue = false,
-    Callback = function(v)
-        state.speedHackEnabled = v
-        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then
-            if v then
-                hum.WalkSpeed = state.speedHackValue
-                local conn; conn = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-                    if not state.speedHackEnabled then if conn then conn:Disconnect() end return end
-                    if hum.WalkSpeed ~= state.speedHackValue then
-                        hum.WalkSpeed = state.speedHackValue
-                    end
+    jumpButton = Instance.new("ImageButton")
+    jumpButton.Name = "JumpBtn"
+    jumpButton.Size = UDim2.new(0, 90, 0, 90)
+    jumpButton.Position = UDim2.new(1, -100, 1, -120)
+    jumpButton.AnchorPoint = Vector2.new(1, 1)
+    jumpButton.BackgroundTransparency = 1
+    jumpButton.Image = "rbxassetid://3926305904"
+    jumpButton.Parent = jumpGui
+
+    jumpButton.InputBegan:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.Touch or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+            if h then
+                pcall(function()
+                    h.UseJumpPower = true
+                    h.JumpPower = state.JumpPower or 50
+                    h:ChangeState(Enum.HumanoidStateType.Jumping)
                 end)
-            else
-                hum.WalkSpeed = state.normalWalkSpeed
             end
         end
-        Rayfield:Notify({Title="Speed", Content="Speed hack ".. (v and "enabled" or "disabled"), Duration=2})
-    end
-})
+    end)
+end
+-- == Rayfield UI Setup ==
+local success, Rayfield = pcall(function()
+    return loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+end)
 
-SpecialTab:CreateInput({
-    Name = "Set Speed Value",
-    PlaceholderText = "e.g. 18",
-    Callback = function(val)
-        local n = tonumber(val)
-        if n and n > 0 then
-            state.speedHackValue = n
-            if state.speedHackEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-                player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = n
-            end
-            Rayfield:Notify({Title="Speed", Content="Speed set to "..n, Duration=2})
-        end
-    end
-})
+if not success or not Rayfield then
+    warn("Rayfield failed to load.")
+    return
+end
 
--- Manual Teleport to Player (username/display)
-SpecialTab:CreateInput({
-    Name = "TP to Player (username/display)",
-    PlaceholderText = "Username or Display Name",
-    Callback = function(val)
-        state.tpUsername = tostring(val or "")
-    end
-})
-
-SpecialTab:CreateButton({
-    Name = "Teleport Now",
-    Callback = function()
-        local targetPlayer = findPlayerByName(state.tpUsername)
-        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            teleportCharacter(player.Character, targetPlayer.Character.HumanoidRootPart.Position)
-            Rayfield:Notify({
-                Title="Teleport Success", 
-                Content="Teleported to " .. targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")", 
-                Duration=3
-            })
-        else
-            Rayfield:Notify({
-                Title="Teleport Failed", 
-                Content="Player '" .. state.tpUsername .. "' not found or not spawned", 
-                Duration=3
-            })
-        end
-    end
-})
-
--- Quick Teleport to Nearest Player
-SpecialTab:CreateButton({
-    Name = "📍 TP to Nearest Player",
-    Callback = function()
-        local myChar = player.Character
-        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not myHRP then return end
-        local nearestDist, nearest = math.huge, nil
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                local d = (plr.Character.HumanoidRootPart.Position - myHRP.Position).Magnitude
-                if d < nearestDist then nearestDist = d nearest = plr end
-            end
-        end
-        if nearest and nearest.Character and nearest.Character:FindFirstChild("HumanoidRootPart") then
-            teleportCharacter(player.Character, nearest.Character.HumanoidRootPart.Position + Vector3.new(0,0,2))
-            Rayfield:Notify({Title="Teleport", Content="Teleported near "..nearest.DisplayName, Duration=2})
-        else
-            Rayfield:Notify({Title="Teleport", Content="No nearby players found", Duration=2})
-        end
-    end
+local Window = Rayfield:CreateWindow({
+    Name = "🛡️ ShieldTeam | NERO Ultimate",
+    LoadingTitle = "ShieldTeam | NERO",
+    LoadingSubtitle = "Ultimate Summit & Features",
+    ConfigurationSaving = { Enabled = false }
 })
 
 -- Auto Summit Tab
+local AutoTab = Window:CreateTab("Auto Summit", 4483362458)
 AutoTab:CreateToggle({
     Name = "Auto Loop Summit",
     CurrentValue = false,
@@ -659,8 +696,7 @@ for i, pos in ipairs(checkpoints) do
         Name = "Teleport CP"..i,
         Callback = function()
             teleportCharacter(player.Character, pos)
-            Rayfield:Notify({
-                Title="Teleport", Content="Teleported to CP"..i, Duration=2})
+            Rayfield:Notify({Title="Teleport", Content="Teleported to CP"..i, Duration=2})
         end
     })
 end
@@ -677,18 +713,20 @@ MainTab:CreateToggle({
         else 
             removeJumpButton() 
         end
+        saveConfig() -- Note: saveConfig() belum ada di script ini
     end
 })
 
+-- LOKASI 4: Jump Power Input (Baris 668-684)
 MainTab:CreateInput({
-    Name = "Set JumpPower",
-    PlaceholderText = "e.g. 50",
+    Name = "Jump Power (number)",
+    PlaceholderText = tostring(state.JumpPower),
     Callback = function(val)
         local n = tonumber(val)
-        if n then
+        if n and n > 0 then
             state.JumpPower = n
-            local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
             pcall(function()
+                local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
                 if h then
                     h.UseJumpPower = true
                     h.JumpPower = n
@@ -705,15 +743,16 @@ MainTab:CreateToggle({
     CurrentValue = false,
     Callback = function(v)
         state.infJump = v
-        Rayfield:Notify({Title="Jump", Content="Infinity Jump "..(v and "ON" or "OFF"), Duration=2})
+        Rayfield:Notify({Title="Jump", Content=v and "Infinity jump enabled" or "Infinity jump disabled", Duration=2})
     end
 })
 
 MainTab:CreateToggle({
-    Name = "ESP",
+    Name = "ESP Player",
     CurrentValue = false,
     Callback = function(v)
         setESP(v)
+        Rayfield:Notify({Title="ESP", Content=v and "Player ESP enabled" or "Player ESP disabled", Duration=2})
     end
 })
 
@@ -721,18 +760,360 @@ MainTab:CreateToggle({
     Name = "Noclip",
     CurrentValue = false,
     Callback = function(v)
-        if v then enableNoclip() else disableNoclip() end
-        Rayfield:Notify({Title="Noclip", Content="Noclip "..(v and "ON" or "OFF"), Duration=2})
+        state.noclipEnabled = v
+        Rayfield:Notify({Title="Noclip", Content=v and "Noclip enabled" or "Noclip disabled", Duration=2})
     end
 })
 
--- Movement Tab extras
+-- Movement Tab
+local MovementTab = Window:CreateTab("Movement", 4483362458)
+
+-- Fly System Controls
+MovementTab:CreateInput({
+    Name = "Fly Speed",
+    PlaceholderText = "e.g. 1",
+    Callback = function(val)
+        local n = tonumber(val)
+        if n and n > 0 then
+            state.flySpeed = n
+            FlyModule.setSpeed(n)
+            Rayfield:Notify({Title="Fly", Content="Fly speed set to: " .. n, Duration=2})
+        end
+    end
+})
+
 MovementTab:CreateToggle({
-    Name = "Mobile Fly Buttons",
+    Name = "Fly Mode (InfinityYield Style)",
     CurrentValue = false,
     Callback = function(v)
-        if v then createFlyGui() else removeFlyGui() end
-        Rayfield:Notify({Title="Fly UI", Content="Mobile buttons "..(v and "shown" or "hidden"), Duration=2})
+        state.flyEnabled = v
+        if v then
+            FlyModule.setSpeed(state.flySpeed)
+            if UserInputService.TouchEnabled then
+                FlyModule.mobilefly(player, false)
+                createFlyButtons()
+                Rayfield:Notify({Title="Fly", Content="Mobile fly enabled with GUI buttons", Duration=3})
+            else
+                FlyModule.sFLY(false)
+                Rayfield:Notify({Title="Fly", Content="PC fly enabled (WASD + QE)", Duration=3})
+            end
+        else
+            if UserInputService.TouchEnabled then
+                FlyModule.unmobilefly(player)
+                removeFlyButtons()
+            else
+                FlyModule.NOFLY()
+            end
+            Rayfield:Notify({Title="Fly", Content="Fly mode disabled", Duration=2})
+        end
+    end
+})
+
+-- Speed Hack System
+MovementTab:CreateInput({
+    Name = "Speed Hack Value",
+    PlaceholderText = "e.g. 100",
+    Callback = function(val)
+        local n = tonumber(val)
+        if n and n > 0 then
+            state.speedHackValue = n
+            if state.speedHackEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+                player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = n
+            end
+            Rayfield:Notify({Title="Speed", Content="Speed hack value set to: " .. n, Duration=2})
+        end
+    end
+})
+
+MovementTab:CreateToggle({
+    Name = "Speed Hack (Anti-Reset)",
+    CurrentValue = false,
+    Callback = function(v)
+        state.speedHackEnabled = v
+        if v then
+            Rayfield:Notify({Title="Speed Hack", Content="Speed hack enabled: " .. state.speedHackValue .. " (Anti-Reset)", Duration=3})
+        else
+            Rayfield:Notify({Title="Speed Hack", Content="Speed hack disabled", Duration=2})
+        end
+    end
+})
+
+-- Special Tab
+local SpecialTab = Window:CreateTab("Special", 4483362458)
+
+-- Mobile Fly Controls (shown even on PC for manual control)
+SpecialTab:CreateButton({
+    Name = "Ascend (Manual)",
+    Callback = function()
+        state.verticalFly = 1
+        task.delay(0.3, function() state.verticalFly = 0 end)
+        Rayfield:Notify({Title="Fly", Content="Manual ascend", Duration=1})
+    end
+})
+
+SpecialTab:CreateButton({
+    Name = "Descend (Manual)",
+    Callback = function()
+        state.verticalFly = -1
+        task.delay(0.3, function() state.verticalFly = 0 end)
+        Rayfield:Notify({Title="Fly", Content="Manual descend", Duration=1})
+    end
+})
+
+-- Enhanced Player Teleport System
+SpecialTab:CreateSection("Enhanced Player Teleport")
+
+-- Original Player Teleport System
+SpecialTab:CreateInput({
+    Name = "Teleport to Player",
+    PlaceholderText = "Username or Display Name",
+    Callback = function(text)
+        state.tpUsername = text
+    end
+})
+
+SpecialTab:CreateButton({
+    Name = "Go To Player",
+    Callback = function()
+        local targetPlayer = findPlayerByName(state.tpUsername)
+        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            teleportCharacter(player.Character, targetPlayer.Character.HumanoidRootPart.Position)
+            Rayfield:Notify({
+                Title="Teleport Success", 
+                Content="Teleported to " .. targetPlayer.DisplayName .. " (@" .. targetPlayer.Name .. ")", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="Teleport Failed", 
+                Content="Player '" .. state.tpUsername .. "' not found or not spawned", 
+                Duration=3
+            })
+        end
+    end
+})
+
+-- Quick Teleport to Nearest Player
+SpecialTab:CreateButton({
+    Name = "📍 TP to Nearest Player",
+    Callback = function()
+        if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
+            Rayfield:Notify({Title="Error", Content="Your character is not spawned", Duration=2})
+            return
+        end
+        
+        local myPos = player.Character.HumanoidRootPart.Position
+        local nearestPlayer = nil
+        local nearestDistance = math.huge
+        
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (plr.Character.HumanoidRootPart.Position - myPos).Magnitude
+                if distance < nearestDistance then
+                    nearestDistance = distance
+                    nearestPlayer = plr
+                end
+            end
+        end
+        
+        if nearestPlayer then
+            teleportCharacter(player.Character, nearestPlayer.Character.HumanoidRootPart.Position)
+            Rayfield:Notify({
+                Title="Teleport Success", 
+                Content="Teleported to nearest player: " .. nearestPlayer.DisplayName .. " (Distance: " .. math.floor(nearestDistance) .. ")", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="No Players Found", 
+                Content="No other players are spawned in the server", 
+                Duration=3
+            })
+        end
+    end
+})
+
+-- Teleport All Players to You
+SpecialTab:CreateButton({
+    Name = "🌟 Bring All Players to Me",
+    Callback = function()
+        if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
+            Rayfield:Notify({Title="Error", Content="Your character is not spawned", Duration=2})
+            return
+        end
+        
+        local myPos = player.Character.HumanoidRootPart.Position
+        local teleportedCount = 0
+        
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                -- Teleport other players to positions around you
+                local offsetPos = myPos + Vector3.new(
+                    math.random(-5, 5), 
+                    0, 
+                    math.random(-5, 5)
+                )
+                teleportCharacter(plr.Character, offsetPos)
+                teleportedCount = teleportedCount + 1
+            end
+        end
+        
+        if teleportedCount > 0 then
+            Rayfield:Notify({
+                Title="Mass Teleport", 
+                Content="Teleported " .. teleportedCount .. " players to your location", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="No Players", 
+                Content="No other players to teleport", 
+                Duration=2
+            })
+        end
+    end
+})
+
+-- List All Players with Quick TP Buttons
+local playerButtonsCreated = {}
+
+local function createQuickTPButtons()
+    -- Clear old buttons reference
+    playerButtonsCreated = {}
+    
+    local playerCount = 0
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            playerCount = playerCount + 1
+            if playerCount <= 6 then -- Limit to 6 buttons to avoid UI clutter
+                local displayText = plr.DisplayName .. " (@" .. plr.Name .. ")"
+                
+                SpecialTab:CreateButton({
+                    Name = "🚀 TP → " .. (string.len(displayText) > 20 and string.sub(displayText, 1, 20) .. "..." or displayText),
+                    Callback = function()
+                        -- Double check player is still valid
+                        local currentPlr = nil
+                        for _, checkPlr in ipairs(Players:GetPlayers()) do
+                            if checkPlr.Name == plr.Name then
+                                currentPlr = checkPlr
+                                break
+                            end
+                        end
+                        
+                        if currentPlr and currentPlr.Character and currentPlr.Character:FindFirstChild("HumanoidRootPart") then
+                            teleportCharacter(player.Character, currentPlr.Character.HumanoidRootPart.Position)
+                            Rayfield:Notify({
+                                Title="Quick TP", 
+                                Content="Teleported to " .. currentPlr.DisplayName, 
+                                Duration=2
+                            })
+                        else
+                            Rayfield:Notify({
+                                Title="Player Not Found", 
+                                Content=plr.DisplayName .. " left or not spawned", 
+                                Duration=2
+                            })
+                        end
+                    end
+                })
+                playerButtonsCreated[plr.Name] = true
+            end
+        end
+    end
+    
+    if playerCount == 0 then
+        SpecialTab:CreateParagraph({
+            Title = "No Players Online",
+            Content = "No other players found in the server. Join a server with more players!"
+        })
+    elseif playerCount > 6 then
+        SpecialTab:CreateParagraph({
+            Title = "Many Players Online",
+            Content = "Server has " .. playerCount .. " players. Showing first 6 as buttons. Use manual teleport for others."
+        })
+    end
+end
+
+-- Create initial player buttons
+createQuickTPButtons()
+
+SpecialTab:CreateButton({
+    Name = "🔄 Refresh Quick TP Buttons",
+    Callback = function()
+        Rayfield:Notify({
+            Title="Quick TP Buttons", 
+            Content="Restart the script to see updated player buttons", 
+            Duration=3
+        })
+    end
+})
+
+SpecialTab:CreateButton({
+    Name = "📋 List All Players",
+    Callback = function()
+        local playerList = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= player then
+                table.insert(playerList, plr.DisplayName .. " (@" .. plr.Name .. ")")
+            end
+        end
+        if #playerList > 0 then
+            local listText = table.concat(playerList, ", ")
+            if string.len(listText) > 100 then
+                listText = string.sub(listText, 1, 100) .. "..."
+            end
+            Rayfield:Notify({
+                Title="Players Online (" .. #playerList .. ")", 
+                Content=listText, 
+                Duration=5
+            })
+        else
+            Rayfield:Notify({
+                Title="Players Online", 
+                Content="No other players found", 
+                Duration=3
+            })
+        end
+    end
+})
+
+-- Admin Title Toggle
+SpecialTab:CreateToggle({
+    Name = "Fake Title: Admin (Blue)",
+    CurrentValue = false,
+    Callback = function(v)
+        state.adminTitleEnabled = v
+        if v then
+            createAdminTitle()
+            Rayfield:Notify({Title="Admin Title", Content="Admin title enabled", Duration=2})
+        else
+            removeAdminTitle()
+            Rayfield:Notify({Title="Admin Title", Content="Admin title disabled", Duration=2})
+        end
+    end
+})
+
+SpecialTab:CreateToggle({
+    Name = "🛡️ BYPASS ANTICHEAT",
+    CurrentValue = false,
+    Callback = function(v)
+        state.anticheatBypassEnabled = v
+        if v then
+            pcall(function() 
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/hm5650/ACR/refs/heads/main/Acr", true))() 
+            end)
+            Rayfield:Notify({
+                Title="Bypass Anticheat", 
+                Content="Anticheat bypass enabled successfully!", 
+                Duration=3
+            })
+        else
+            Rayfield:Notify({
+                Title="Bypass Anticheat", 
+                Content="Anticheat bypass disabled", 
+                Duration=2
+            })
+        end
     end
 })
 
@@ -752,17 +1133,24 @@ SettingsTab:CreateButton({
         if state.flyEnabled then
             state.flyEnabled = false
             if UserInputService.TouchEnabled then
-                removeFlyGui()
+                FlyModule.unmobilefly(player)
+                removeFlyButtons()
+            else
+                FlyModule.NOFLY()
             end
-            FlyModule.stop()
         end
-
-        -- Remove admin title
-        disableAdminTitle()
         
-        -- Remove noclip connection
-        disableNoclip()
-
+        -- Reset speeds
+        state.speedHackEnabled = false
+        state.normalWalkSpeed = 16
+        state.speedHackValue = 100
+        
+        -- Remove admin title
+        if state.adminTitleEnabled then
+            state.adminTitleEnabled = false
+            removeAdminTitle()
+        end
+        
         -- Apply normal walk speed
         if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
             player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16
@@ -794,9 +1182,11 @@ SettingsTab:CreateButton({
 })
 
 -- Info Tab
+local InfoTab = Window:CreateTab("Info", 4483362458)
+
 InfoTab:CreateParagraph({
     Title = "🛡️ NERO Ultimate Features",
-    Content = "Auto Summit with carry support • InfinityYield-style Fly (PC & Mobile) • Anti-reset speed hack • Enhanced player teleport system • ESP & Noclip • Quick TP tools"
+    Content = "Auto Summit with carry support • InfinityYield-style fly • Anti-reset speed hack • Enhanced player teleport system • ESP & Noclip • Fake admin title"
 })
 
 InfoTab:CreateParagraph({
@@ -806,28 +1196,46 @@ InfoTab:CreateParagraph({
 
 InfoTab:CreateParagraph({
     Title = "🚀 Enhanced Teleport Features",
-    Content = "• Quick TP buttons for nearby players • Teleport to nearest player • Bring players to you • Manual teleport with username/display name search"
+    Content = "• Quick TP buttons for nearby players • Teleport to nearest player • Bring all players to you • Manual teleport with username/display name search"
 })
 
 InfoTab:CreateParagraph({
     Title = "🔧 Speed Hack",
-    Content = "Anti-reset technology prevents speed from being reset by the game. Uses velocity handlers to maintain consistent walk speed."
+    Content = "Anti-reset technology prevents speed from being reset by the game. Uses velocity backup if WalkSpeed fails."
 })
 
--- Ensure GUI stays loaded in PlayerGui
-task.spawn(function()
-    local gui = player:WaitForChild("PlayerGui")
-    if flyGui and flyGui.Parent ~= gui then
-        flyGui.Parent = gui
+InfoTab:CreateParagraph({
+    Title = "ℹ️ Script Info",
+    Content = "ShieldTeam | NERO Ultimate v2.1 - Enhanced with advanced player teleport system. For support, contact ShieldTeam developers."
+})
+
+-- Cleanup on script end or player leaving
+game:GetService("Players").PlayerRemoving:Connect(function(plr)
+    if plr == player then
+        -- Cleanup fly
+        if state.flyEnabled then
+            FlyModule.NOFLY()
+            FlyModule.unmobilefly(player)
+            removeFlyButtons()
+        end
+        -- Cleanup GUI
+        removeAdminTitle()
+        -- Cleanup noclip
+        disableNoclip()
     end
 end)
 
--- Auto carry reminder
-task.spawn(function()
-    while true do
-        task.wait(30)
-        if state.running then
-            Rayfield:Notify({Title="Summit", Content="Auto loop running...", Duration=2})
-        end
+-- Final initialization
+task.delay(1, function()
+    -- Set initial normal walk speed
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = state.normalWalkSpeed
     end
+    
+    -- Welcome notification
+    Rayfield:Notify({
+        Title="🛡️ NERO Ultimate v2.1", 
+        Content="Loaded successfully! Enhanced player teleport system added. Check Info tab for controls.", 
+        Duration=4
+    })
 end)
