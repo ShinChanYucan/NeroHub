@@ -67,21 +67,6 @@ local function teleportCharacter(character, position)
     end
 end
 
--- Natural movement simulation
-local function naturalTeleport(character, targetPos, steps)
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-    
-    local startPos = character.HumanoidRootPart.Position
-    steps = steps or 5
-    
-    for i = 1, steps do
-        local alpha = i / steps
-        local lerpPos = startPos:lerp(targetPos, alpha)
-        teleportCharacter(character, lerpPos)
-        task.wait(0.1 + math.random() * 0.1) -- Random delay 0.1-0.2s
-    end
-end
-
 -- Get carried player character if near
 local function getCarriedCharacter()
     local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -97,12 +82,33 @@ local function getCarriedCharacter()
     return nil
 end
 
--- Check if at checkpoint (validation)
-local function isAtCheckpoint(character, targetPos, tolerance)
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
-    tolerance = tolerance or 10
-    local dist = (character.HumanoidRootPart.Position - targetPos).Magnitude
-    return dist <= tolerance
+-- == Fixed Player Finding Function ==
+local function findPlayerByName(searchName)
+    if not searchName or searchName == "" then return nil end
+    local lowerSearch = searchName:lower()
+    
+    -- First try exact username match
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name:lower() == lowerSearch then
+            return plr
+        end
+    end
+    
+    -- Then try display name match
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.DisplayName:lower() == lowerSearch then
+            return plr
+        end
+    end
+    
+    -- Finally try partial matches
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr.Name:lower():find(lowerSearch) or plr.DisplayName:lower():find(lowerSearch) then
+            return plr
+        end
+    end
+    
+    return nil
 end
 
 -- Noclip control
@@ -123,95 +129,44 @@ local function disableNoclip()
     end
 end
 
--- FIXED Summit Loop - More Natural & Validated
+-- Summit Loop with carry support
 local function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
-        
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
-            
-            print("Moving to CP" .. i .. "...")
-            
+
             if i == #checkpoints then
-                -- CP5 special handling with validation
-                print("Approaching summit (CP5)...")
-                
-                -- Method 1: Natural approach without noclip first
-                naturalTeleport(player.Character, Vector3.new(pos.X, pos.Y - 50, pos.Z), 8)
-                if carriedChar then
-                    naturalTeleport(carriedChar, Vector3.new(pos.X, pos.Y - 50, pos.Z) + Vector3.new(0, 0, 3), 8)
-                end
-                
-                task.wait(2) -- Wait for server to register
-                
-                -- Now enable noclip for final ascent
+                -- CP5 special: fly + noclip + descend
                 enableNoclip()
-                task.wait(0.5)
-                
-                -- Slower, more natural ascent
-                for step = 1, 10 do
-                    local alpha = step / 10
-                    local currentY = (-50 + alpha * 50) -- From -50 to 0 relative to target
-                    local stepPos = Vector3.new(pos.X, pos.Y + currentY, pos.Z)
-                    
-                    teleportCharacter(player.Character, stepPos)
-                    if carriedChar then
-                        teleportCharacter(carriedChar, stepPos + Vector3.new(0, 0, 3))
-                    end
-                    task.wait(0.3 + math.random() * 0.2) -- 0.3-0.5s random
+                teleportCharacter(player.Character, pos)
+                if carriedChar then
+                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                
-                -- Stay at summit longer for server validation
-                task.wait(5)
-                print("Summit reached, validating...")
-                
-                -- Gentle descent
-                for y = 0, 150, 8 do -- Smaller steps, slower
+                task.wait(0.5)
+                for y = 150, 0, -10 do
                     local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
                     teleportCharacter(player.Character, descendPos)
                     if carriedChar then
                         teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
                     end
-                    task.wait(0.4)
+                    task.wait(0.2)
                 end
-                
                 disableNoclip()
-                task.wait(3) -- Extra wait after summit completion
-                
             else
-                -- Regular checkpoints with validation
-                naturalTeleport(player.Character, pos, 3)
+                teleportCharacter(player.Character, pos)
                 if carriedChar then
-                    naturalTeleport(carriedChar, pos + Vector3.new(0, 0, 3), 3)
+                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
-                
-                -- Validate arrival
                 task.wait(1)
-                if isAtCheckpoint(player.Character, pos) then
-                    print("CP" .. i .. " validated!")
-                else
-                    print("CP" .. i .. " failed, retrying...")
-                    teleportCharacter(player.Character, pos) -- Backup teleport
-                    if carriedChar then
-                        teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
-                    end
-                end
-                
-                task.wait(1.5 + math.random()) -- Random delay 1.5-2.5s
             end
         end
-        
-        print("Summit completed, returning to start...")
-        task.wait(3) -- Longer wait before reset
-        
-        -- Natural return to start
-        naturalTeleport(player.Character, checkpoints[1], 5)
+        task.wait(1)
+        teleportCharacter(player.Character, checkpoints[1])
         if carriedChar then
-            naturalTeleport(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3), 5)
+            teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
         end
-        
-        task.wait(5) -- Longer wait before next loop
+        task.wait(1)
     end
 end
 
