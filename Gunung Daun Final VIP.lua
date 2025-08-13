@@ -133,31 +133,42 @@ end
 local function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
+
         -- CP1 to CP4 normal
         for i = 1, 4 do
             if not state.running then break end
-            teleportCharacter(player.Character, checkpoints[i])
-            if carriedChar then
-                teleportCharacter(carriedChar, checkpoints[i] + Vector3.new(0, 0, 3))
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                teleportCharacter(player.Character, checkpoints[i])
+                if carriedChar then
+                    teleportCharacter(carriedChar, checkpoints[i] + Vector3.new(0, 0, 3))
+                end
             end
             task.wait(1)
         end
         if not state.running then break end
+
         -- Delay 2 minutes at CP4
         task.wait(120)
+
         -- TP CP5
-        teleportCharacter(player.Character, checkpoints[5])
-        if carriedChar then
-            teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            teleportCharacter(player.Character, checkpoints[5])
+            if carriedChar then
+                teleportCharacter(carriedChar, checkpoints[5] + Vector3.new(0, 0, 3))
+            end
         end
         task.wait(1)
-        -- Finish point (assume last point defined separately)
-        if finishPoint then
+
+        -- Finish point
+        if finishPoint and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             teleportCharacter(player.Character, finishPoint)
             if carriedChar then
                 teleportCharacter(carriedChar, finishPoint + Vector3.new(0, 0, 3))
             end
         end
+
+        -- Delay aman sebelum loop ulang
+        task.wait(3)
     end
 end
 
