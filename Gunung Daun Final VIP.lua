@@ -129,39 +129,53 @@ local function disableNoclip()
     end
 end
 
--- Summit Loop with carry support
-local function summitLoop()
+-- Perbaikan summitLoop dengan fly tween CP4 → CP5
+local TweenService = game:GetService("TweenService")
+
+local function flyToPosition(character, targetPos, duration)
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local hrp = character.HumanoidRootPart
+        local tween = TweenService:Create(
+            hrp,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear),
+            { CFrame = CFrame.new(targetPos) }
+        )
+        tween:Play()
+        tween.Completed:Wait()
+    end
+end
+
+function summitLoop()
     while state.running do
         local carriedChar = getCarriedCharacter()
+        
         for i, pos in ipairs(checkpoints) do
             if not state.running then break end
 
-            if i == #checkpoints then
-                -- CP5 special: fly + noclip + descend
-                enableNoclip()
-                teleportCharacter(player.Character, pos)
-                if carriedChar then
-                    teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
-                end
-                task.wait(0.5)
-                for y = 150, 0, -10 do
-                    local descendPos = Vector3.new(pos.X, pos.Y - y, pos.Z)
-                    teleportCharacter(player.Character, descendPos)
-                    if carriedChar then
-                        teleportCharacter(carriedChar, descendPos + Vector3.new(0, 0, 3))
-                    end
-                    task.wait(0.2)
-                end
-                disableNoclip()
-            else
+            if i < #checkpoints - 1 then
+                -- CP1–CP3 normal teleport
                 teleportCharacter(player.Character, pos)
                 if carriedChar then
                     teleportCharacter(carriedChar, pos + Vector3.new(0, 0, 3))
                 end
                 task.wait(1)
+
+            elseif i == #checkpoints - 1 then
+                -- CP4 → CP5 (fly tween)
+                enableNoclip()
+                flyToPosition(player.Character, checkpoints[i+1], 5) -- 5 detik
+                if carriedChar then
+                    flyToPosition(carriedChar, checkpoints[i+1] + Vector3.new(0, 0, 3), 5)
+                end
+                disableNoclip()
+
+            elseif i == #checkpoints then
+                -- Sampai CP5 (Finish) → delay aman sebelum loop
+                task.wait(2)
             end
         end
-        task.wait(1)
+
+        -- Balik ke CP1 untuk loop
         teleportCharacter(player.Character, checkpoints[1])
         if carriedChar then
             teleportCharacter(carriedChar, checkpoints[1] + Vector3.new(0, 0, 3))
