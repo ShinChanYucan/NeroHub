@@ -162,7 +162,7 @@ function summitLoop()
                 -- Kalau ini CP4, fly tween ke CP5
                 if i == #checkpoints - 1 then
                     enableNoclip()
-                    flyToPosition(player.Character, checkpoints[i+1], 10) -- durasi 5 detik
+                    flyToPosition(player.Character, checkpoints[i+1], 60) -- durasi 5 detik
                     if carriedChar then
                         flyToPosition(carriedChar, checkpoints[i+1] + Vector3.new(0, 0, 3), 5)
                     end
