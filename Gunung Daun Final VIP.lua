@@ -1131,7 +1131,7 @@ local function runRouteOnce()
     -- Auto jump 3 kali di CP3
     autoJump(3)
     -- Delay 7 detik di CP3
-    task.wait(10)
+    task.wait(15)
     
     -- ToCP4 ke CP4  
     if not running then return end
@@ -1145,7 +1145,7 @@ local function runRouteOnce()
     -- Auto jump 3 kali di CP4
     autoJump(3)
     -- Delay 7 detik di CP4
-    task.wait(10)
+    task.wait(25)
     
     -- ToFinish
     if not running then return end
