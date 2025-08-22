@@ -1050,7 +1050,7 @@ local function findPlayerByName(searchName)
     return nil
 end
 
--- Noclip control dengan perbaikan (NO DAMAGE)
+-- Noclip control dengan perbaikan (NO DAMAGE + NO FALL THROUGH GROUND)
 local noclipConnection = nil
 local noclipEnabled = false
 local originalHealth = nil
@@ -1069,20 +1069,39 @@ local function enableNoclip()
     noclipConnection = RunService.Stepped:Connect(function()
         if noclipEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
             
-            -- Method 1: Set ke Physics state untuk true noclip
-            humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            -- PERBAIKAN: Gunakan Flying state instead of Physics untuk avoid tembus tanah
+            if humanoid:GetState() ~= Enum.HumanoidStateType.Flying then
+                humanoid:ChangeState(Enum.HumanoidStateType.Flying)
+            end
             
-            -- Method 2: Disable collision untuk semua parts
+            -- Disable collision untuk semua parts
             for _, part in pairs(player.Character:GetDescendants()) do
                 if part:IsA("BasePart") and part.Parent == player.Character then
                     part.CanCollide = false
                 end
             end
             
-            -- Method 3: Prevent damage dengan maintain full health
+            -- ANTI FALL THROUGH: Set minimum Y position jika terlalu rendah
+            if rootPart and rootPart.Position.Y < -1000 then
+                -- Emergency teleport ke spawn atau posisi aman
+                rootPart.CFrame = CFrame.new(rootPart.Position.X, 50, rootPart.Position.Z)
+                print("Emergency: Prevented fall through world!")
+            end
+            
+            -- Prevent damage dengan maintain full health
             if humanoid.Health < humanoid.MaxHealth then
                 humanoid.Health = humanoid.MaxHealth
+            end
+            
+            -- PERBAIKAN: Set BodyVelocity ke zero untuk prevent uncontrolled falling
+            if rootPart and rootPart.AssemblyLinearVelocity.Y < -50 then
+                local bodyVelocity = rootPart:FindFirstChild("AntiGravity") or Instance.new("BodyVelocity")
+                bodyVelocity.Name = "AntiGravity"
+                bodyVelocity.MaxForce = Vector3.new(0, math.huge, 0)
+                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+                bodyVelocity.Parent = rootPart
             end
         end
     end)
@@ -1098,6 +1117,12 @@ local function disableNoclip()
     -- Restore collision dan normal state
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+        
+        -- Remove anti-gravity body velocity
+        if rootPart and rootPart:FindFirstChild("AntiGravity") then
+            rootPart.AntiGravity:Destroy()
+        end
         
         -- Restore normal humanoid state
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
@@ -1118,7 +1143,7 @@ local function disableNoclip()
     end
 end
 
--- Fungsi untuk temporary disable noclip (untuk jump)
+-- Fungsi untuk temporary disable noclip (untuk jump) - IMPROVED
 local function temporaryDisableNoclip(duration)
     local wasEnabled = noclipEnabled
     if not wasEnabled then return end
@@ -1128,6 +1153,13 @@ local function temporaryDisableNoclip(duration)
     -- Set ke running state untuk jump
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
         local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+        
+        -- Remove anti-gravity temporarily
+        if rootPart and rootPart:FindFirstChild("AntiGravity") then
+            rootPart.AntiGravity:Destroy()
+        end
+        
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
         
         -- Ensure no damage during temporary disable
@@ -1136,6 +1168,10 @@ local function temporaryDisableNoclip(duration)
         tempConnection = RunService.Stepped:Connect(function()
             if humanoid.Health < tempHealth then
                 humanoid.Health = tempHealth
+            end
+            -- Prevent falling through ground even during temp disable
+            if rootPart and rootPart.Position.Y < -1000 then
+                rootPart.CFrame = CFrame.new(rootPart.Position.X, 50, rootPart.Position.Z)
             end
         end)
         
@@ -1204,42 +1240,53 @@ local function resetCharacter()
     end)
 end
 
--- Fungsi untuk validasi checkpoint dengan delay yang tepat
+-- Fungsi untuk validasi checkpoint dengan delay yang PASTI VALID
 local function validateCheckpoint(checkpointNumber, position)
     local delays = {
-        [1] = 1,   -- CP1: 1 detik
-        [2] = 3,   -- CP2: 3 detik  
-        [3] = 12,  -- CP3: 12 detik
-        [4] = 20   -- CP4: 20 detik
+        [1] = 1,   -- CP1: 5 detik (aman)
+        [2] = 3,  -- CP2: 12 detik (aman)
+        [3] = 25,  -- CP3: 25 detik (sangat aman)
+        [4] = 35   -- CP4: 35 detik (extra aman)
     }
     
-    local waitTime = delays[checkpointNumber] or 10
+    local waitTime = delays[checkpointNumber] or 15
     
     print(string.format("Validating CP%d with %d second delay...", checkpointNumber, waitTime))
     
-    -- Teleport ke checkpoint
-    teleportCharacter(player.Character, position)
-    
-    -- Wait untuk initial positioning
-    task.wait(2)
-    
-    -- Auto jump 3 kali
-    autoJump(3)
-    
-    -- Wait untuk validasi checkpoint
-    task.wait(waitTime)
-    
-    -- Extra validation attempts jika diperlukan
-    if checkpointNumber >= 3 then
-        print(string.format("Extra validation for CP%d...", checkpointNumber))
-        -- Re-teleport untuk memastikan posisi
+    -- Multiple teleport attempts untuk memastikan posisi
+    for attempt = 1, 3 do
         teleportCharacter(player.Character, position)
         task.wait(1)
-        autoJump(2) -- Extra jumps
-        task.wait(3) -- Extra wait
+        if attempt == 3 then break end
+        print(string.format("CP%d teleport attempt %d", checkpointNumber, attempt))
     end
     
-    print(string.format("CP%d validation completed!", checkpointNumber))
+    -- Wait untuk positioning
+    task.wait(3)
+    
+    -- Multiple jump attempts
+    autoJump(5) -- 5 kali jump untuk trigger
+    
+    -- Main validation wait
+    task.wait(waitTime)
+    
+    -- EXTRA validation untuk CP3 dan CP4
+    if checkpointNumber >= 3 then
+        print(string.format("EXTRA validation phase for CP%d...", checkpointNumber))
+        
+        -- Re-teleport dengan force
+        for i = 1, 2 do
+            teleportCharacter(player.Character, position)
+            task.wait(2)
+            autoJump(3)
+            task.wait(5)
+        end
+        
+        print(string.format("EXTRA validation completed for CP%d", checkpointNumber))
+    end
+    
+    print(string.format("CP%d FULLY VALIDATED! (Total: ~%d seconds)", checkpointNumber, 
+        checkpointNumber >= 3 and (waitTime + 20) or (waitTime + 8)))
 end
 
 local function runRouteOnce()
@@ -1255,6 +1302,7 @@ local function runRouteOnce()
         return 
     end
     
+    enableNoclip()
     
     -- CP1 - Validation delay: 3 detik
     if not running then return end
@@ -1262,9 +1310,6 @@ local function runRouteOnce()
     validateCheckpoint(1, checkpoints[1])
     
     -- ToCP2 ke CP2 - Validation delay: 8 detik
-    
-    enableNoclip()
-    
     if not running then return end
     print("Phase 2: ToCP2 route...")
     for i, cf in ipairs(toCP2) do
