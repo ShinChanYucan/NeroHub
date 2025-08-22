@@ -1245,8 +1245,8 @@ local function validateCheckpoint(checkpointNumber, position)
     local delays = {
         [1] = 1,   -- CP1: 5 detik (aman)
         [2] = 2,  -- CP2: 12 detik (aman)
-        [3] = 7,  -- CP3: 25 detik (sangat aman)
-        [4] = 13   -- CP4: 35 detik (extra aman)
+        [3] = 2,  -- CP3: 25 detik (sangat aman)
+        [4] = 2   -- CP4: 35 detik (extra aman)
     }
     
     local waitTime = delays[checkpointNumber] or 15
