@@ -1050,37 +1050,108 @@ local function findPlayerByName(searchName)
     return nil
 end
 
--- Noclip control
+-- Noclip control dengan perbaikan
 local noclipConnection = nil
+local noclipEnabled = false
+
 local function enableNoclip()
     if noclipConnection then return end
+    noclipEnabled = true
     noclipConnection = RunService.Stepped:Connect(function()
-        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-            player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(11)
+        if noclipEnabled and player.Character then
+            -- Gunakan metode noclip yang lebih kompatibel
+            for _, part in pairs(player.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.Parent ~= workspace then
+                    part.CanCollide = false
+                end
+            end
         end
     end)
 end
 
 local function disableNoclip()
+    noclipEnabled = false
     if noclipConnection then
         noclipConnection:Disconnect()
         noclipConnection = nil
     end
+    -- Restore collision
+    if player.Character then
+        for _, part in pairs(player.Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Parent ~= workspace then
+                if part.Name ~= "HumanoidRootPart" then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
 end
 
--- PERBAIKI JUGA FUNGSI runRouteOnce - TAMBAH SAFETY CHECK DI AKHIR:
--- Fungsi untuk melakukan lompatan otomatis
+-- Fungsi untuk temporary disable noclip
+local function temporaryDisableNoclip(duration)
+    local wasEnabled = noclipEnabled
+    noclipEnabled = false
+    
+    -- Restore normal humanoid state
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Freefall)
+    end
+    
+    task.wait(duration or 0.1)
+    noclipEnabled = wasEnabled
+end
+
+-- Fungsi untuk melakukan lompatan otomatis (DIPERBAIKI)
 local function autoJump(times)
     if not (player and player.Character and player.Character:FindFirstChild("Humanoid")) then 
         return 
     end
     
     local humanoid = player.Character:FindFirstChild("Humanoid")
+    
     for i = 1, times do
         if not running then return end
+        
+        -- Temporary disable noclip untuk memungkinkan jump
+        temporaryDisableNoclip(0.1)
+        
+        -- Set ke Running state dulu, lalu jump
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        task.wait(0.1)
+        
         humanoid.Jump = true
-        task.wait(0.3) -- Delay antar lompatan
+        print("Jump", i, "executed")
+        
+        task.wait(0.4) -- Delay antar lompatan
     end
+end
+
+-- Fungsi reset karakter yang lebih reliable
+local function resetCharacter()
+    print("Attempting character reset...")
+    
+    -- Disable noclip sebelum reset
+    disableNoclip()
+    task.wait(0.5)
+    
+    pcall(function()
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            
+            -- Clear any existing PartTele before reset
+            if player.Character:FindFirstChild("PartTele") then
+                player.Character.PartTele:Destroy()
+            end
+            
+            -- Restore normal state before killing
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            task.wait(0.2)
+            
+            -- Kill character
+            humanoid.Health = 0
+            print("Character reset signal sent")
+        end
+    end)
 end
 
 local function runRouteOnce()
@@ -1102,8 +1173,7 @@ local function runRouteOnce()
     if not running then return end
     print("Phase 1: Going to CP1")
     teleportCharacter(player.Character, checkpoints[1])
-    -- Delay 7 detik di CP1
-    task.wait(0.3)
+    task.wait(1)
     
     -- ToCP2 ke CP2
     if not running then return end
@@ -1117,7 +1187,7 @@ local function runRouteOnce()
     -- Auto jump 3 kali di CP2
     autoJump(3)
     -- Delay 7 detik di CP2
-    task.wait(5)
+    task.wait(3)
     
     -- ToCP3 ke CP3
     if not running then return end
@@ -1145,7 +1215,7 @@ local function runRouteOnce()
     -- Auto jump 3 kali di CP4
     autoJump(3)
     -- Delay 7 detik di CP4
-    task.wait(25)
+    task.wait(20)
     
     -- ToFinish
     if not running then return end
@@ -1160,23 +1230,14 @@ local function runRouteOnce()
     print("Route completed successfully!")
     task.wait(2)
     
-    disableNoclip()
-    
     if not running then 
         print("Stopped before reset")
+        disableNoclip()
         return 
     end
     
     print("Resetting character for next loop...")
-    pcall(function()
-        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-            -- Clear any existing PartTele before reset
-            if player.Character:FindFirstChild("PartTele") then
-                player.Character.PartTele:Destroy()
-            end
-            player.Character:FindFirstChildOfClass("Humanoid").Health = 0
-        end
-    end)
+    resetCharacter()
     
     print("Character reset completed")
 end
