@@ -1050,20 +1050,39 @@ local function findPlayerByName(searchName)
     return nil
 end
 
--- Noclip control dengan perbaikan
+-- Noclip control dengan perbaikan (NO DAMAGE)
 local noclipConnection = nil
 local noclipEnabled = false
+local originalHealth = nil
 
 local function enableNoclip()
     if noclipConnection then return end
     noclipEnabled = true
+    
+    -- Store original health dan set ke max
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        originalHealth = humanoid.Health
+        humanoid.Health = humanoid.MaxHealth
+    end
+    
     noclipConnection = RunService.Stepped:Connect(function()
-        if noclipEnabled and player.Character then
-            -- Gunakan metode noclip yang lebih kompatibel
+        if noclipEnabled and player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            
+            -- Method 1: Set ke Physics state untuk true noclip
+            humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+            
+            -- Method 2: Disable collision untuk semua parts
             for _, part in pairs(player.Character:GetDescendants()) do
-                if part:IsA("BasePart") and part.Parent ~= workspace then
+                if part:IsA("BasePart") and part.Parent == player.Character then
                     part.CanCollide = false
                 end
+            end
+            
+            -- Method 3: Prevent damage dengan maintain full health
+            if humanoid.Health < humanoid.MaxHealth then
+                humanoid.Health = humanoid.MaxHealth
             end
         end
     end)
@@ -1075,29 +1094,60 @@ local function disableNoclip()
         noclipConnection:Disconnect()
         noclipConnection = nil
     end
-    -- Restore collision
-    if player.Character then
+    
+    -- Restore collision dan normal state
+    if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        
+        -- Restore normal humanoid state
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        
+        -- Restore collision for parts (except HumanoidRootPart)
         for _, part in pairs(player.Character:GetDescendants()) do
-            if part:IsA("BasePart") and part.Parent ~= workspace then
+            if part:IsA("BasePart") and part.Parent == player.Character then
                 if part.Name ~= "HumanoidRootPart" then
                     part.CanCollide = true
                 end
             end
         end
+        
+        -- Restore original health jika ada
+        if originalHealth and originalHealth > 0 then
+            humanoid.Health = originalHealth
+        end
     end
 end
 
--- Fungsi untuk temporary disable noclip
+-- Fungsi untuk temporary disable noclip (untuk jump)
 local function temporaryDisableNoclip(duration)
     local wasEnabled = noclipEnabled
+    if not wasEnabled then return end
+    
     noclipEnabled = false
     
-    -- Restore normal humanoid state
+    -- Set ke running state untuk jump
     if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-        player.Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Freefall)
+        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        
+        -- Ensure no damage during temporary disable
+        local tempHealth = humanoid.Health
+        local tempConnection
+        tempConnection = RunService.Stepped:Connect(function()
+            if humanoid.Health < tempHealth then
+                humanoid.Health = tempHealth
+            end
+        end)
+        
+        task.wait(duration or 0.1)
+        
+        if tempConnection then
+            tempConnection:Disconnect()
+        end
+    else
+        task.wait(duration or 0.1)
     end
     
-    task.wait(duration or 0.1)
     noclipEnabled = wasEnabled
 end
 
@@ -1154,6 +1204,44 @@ local function resetCharacter()
     end)
 end
 
+-- Fungsi untuk validasi checkpoint dengan delay yang tepat
+local function validateCheckpoint(checkpointNumber, position)
+    local delays = {
+        [1] = 1,   -- CP1: 1 detik
+        [2] = 3,   -- CP2: 3 detik  
+        [3] = 12,  -- CP3: 12 detik
+        [4] = 20   -- CP4: 20 detik
+    }
+    
+    local waitTime = delays[checkpointNumber] or 10
+    
+    print(string.format("Validating CP%d with %d second delay...", checkpointNumber, waitTime))
+    
+    -- Teleport ke checkpoint
+    teleportCharacter(player.Character, position)
+    
+    -- Wait untuk initial positioning
+    task.wait(2)
+    
+    -- Auto jump 3 kali
+    autoJump(3)
+    
+    -- Wait untuk validasi checkpoint
+    task.wait(waitTime)
+    
+    -- Extra validation attempts jika diperlukan
+    if checkpointNumber >= 3 then
+        print(string.format("Extra validation for CP%d...", checkpointNumber))
+        -- Re-teleport untuk memastikan posisi
+        teleportCharacter(player.Character, position)
+        task.wait(1)
+        autoJump(2) -- Extra jumps
+        task.wait(3) -- Extra wait
+    end
+    
+    print(string.format("CP%d validation completed!", checkpointNumber))
+end
+
 local function runRouteOnce()
     print("Starting runRouteOnce...")
     
@@ -1169,13 +1257,12 @@ local function runRouteOnce()
     
     enableNoclip()
     
-    -- CP1
+    -- CP1 - Validation delay: 3 detik
     if not running then return end
     print("Phase 1: Going to CP1")
-    teleportCharacter(player.Character, checkpoints[1])
-    task.wait(1)
+    validateCheckpoint(1, checkpoints[1])
     
-    -- ToCP2 ke CP2
+    -- ToCP2 ke CP2 - Validation delay: 8 detik
     if not running then return end
     print("Phase 2: ToCP2 route...")
     for i, cf in ipairs(toCP2) do
@@ -1183,13 +1270,9 @@ local function runRouteOnce()
         topos(player, cf)
         if i % 10 == 0 then task.wait(0) end
     end
-    teleportCharacter(player.Character, checkpoints[2])
-    -- Auto jump 3 kali di CP2
-    autoJump(3)
-    -- Delay 7 detik di CP2
-    task.wait(3)
+    validateCheckpoint(2, checkpoints[2])
     
-    -- ToCP3 ke CP3
+    -- ToCP3 ke CP3 - Validation delay: 12 detik
     if not running then return end
     print("Phase 3: ToCP3 route...")
     for i, cf in ipairs(toCP3) do
@@ -1197,13 +1280,9 @@ local function runRouteOnce()
         topos(player, cf)
         if i % 10 == 0 then task.wait(0) end
     end
-    teleportCharacter(player.Character, checkpoints[3])
-    -- Auto jump 3 kali di CP3
-    autoJump(3)
-    -- Delay 7 detik di CP3
-    task.wait(15)
+    validateCheckpoint(3, checkpoints[3])
     
-    -- ToCP4 ke CP4  
+    -- ToCP4 ke CP4 - Validation delay: 20 detik + extra validation
     if not running then return end
     print("Phase 4: ToCP4 route...")
     for i, cf in ipairs(toCP4) do
@@ -1211,11 +1290,7 @@ local function runRouteOnce()
         topos(player, cf)
         if i % 10 == 0 then task.wait(0) end
     end
-    teleportCharacter(player.Character, checkpoints[4])
-    -- Auto jump 3 kali di CP4
-    autoJump(3)
-    -- Delay 7 detik di CP4
-    task.wait(20)
+    validateCheckpoint(4, checkpoints[4])
     
     -- ToFinish
     if not running then return end
