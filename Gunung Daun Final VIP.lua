@@ -1255,7 +1255,6 @@ local function runRouteOnce()
         return 
     end
     
-    enableNoclip()
     
     -- CP1 - Validation delay: 3 detik
     if not running then return end
@@ -1263,6 +1262,9 @@ local function runRouteOnce()
     validateCheckpoint(1, checkpoints[1])
     
     -- ToCP2 ke CP2 - Validation delay: 8 detik
+    
+    enableNoclip()
+    
     if not running then return end
     print("Phase 2: ToCP2 route...")
     for i, cf in ipairs(toCP2) do
