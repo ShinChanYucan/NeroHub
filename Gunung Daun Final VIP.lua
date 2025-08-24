@@ -36,7 +36,7 @@ local state = {
     adminTitleEnabled = false,
     tpUsername = "",
     verticalFly = 0,
-    TweenSpeed = 1
+    TweenSpeed = 0.32
 }
 
 -- Keep refs to cleanup
@@ -1368,55 +1368,80 @@ end
 -- Kemudian script langsung lanjut ke step berikutnya tanpa tunggu spawn
 
 -- GANTI FUNGSI loopSummit INI:
+local player = game:GetService("Players").LocalPlayer
+local function teleportToCheckpoint(checkpointNumber)
+    local checkpointName = tostring(checkpointNumber)
+    local checkpoint = workspace.Checkpoints:FindFirstChild(checkpointName)
+    
+    if not checkpoint then
+        return
+    end
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    humanoidRootPart.CFrame = checkpoint.CFrame
+end
+local function teleportToFinalPosition()
+    local character = player.Character
+    if not character then
+        return
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        return
+    end
+    local SubmitGate = CFrame.new(-1971.53149, 848.944641, -1671.80981, 0.724059224, 0, 0.689737856, 0, 1, 0, -0.689737856, 0, 0.724059224)
+    humanoidRootPart.CFrame = SubmitGate
+    task.wait(3)
+    local finalPosition = CFrame.new(-3231.60278, 1715.8175 + 150, -2591.06348)
+    humanoidRootPart.CFrame = finalPosition
+    task.wait(3)
+
+end
 local function loopSummit()
     while running do
-        print("=== STARTING NEW SUMMIT LOOP ===")
-        
-        -- Wait for character to be ready
-        local waitTime = 0
-        while running and (not player.Character or not player.Character:FindFirstChild("HumanoidRootPart")) and waitTime < 30 do
-            print("Waiting for character spawn... (" .. waitTime .. "s)")
-            task.wait(1)
-            waitTime = waitTime + 1
+        player.Character:SetAttribute("TeleportBypass", true)
+        task.wait(1)
+        if not player then
+            task.wait(3)
+            continue
         end
         
-        if not running then break end
-        
-        if waitTime >= 30 then
-            print("ERROR: Character spawn timeout - stopping loop")
-            running = false
-            break
+        local leaderstats = player:FindFirstChild("leaderstats")
+        if not leaderstats then
+            task.wait(3)
+            continue
         end
         
-        print("Character ready, starting route...")
-        runRouteOnce()
-        
-        if not running then break end
-        
-        -- Wait before next loop
-        print("Route completed, waiting before next loop...")
-        local waited = 0
-        while running and waited < 7 do 
-            task.wait(0.5)
-            waited = waited + 0.5 
+        local shelter = leaderstats:FindFirstChild("Shelter")
+        if not shelter then
+            task.wait(3)
+            continue
         end
         
-        if not running then break end
+        local shelterValue = shelter.Value
         
-        -- Extra wait for character respawn after reset
-        local respawnWait = 0
-        while running and (not player.Character or not player.Character:FindFirstChild("HumanoidRootPart")) and respawnWait < 15 do
-            print("Waiting for respawn... (" .. respawnWait .. "s)")
-            task.wait(0.5)
-            respawnWait = respawnWait + 0.5
-        end
-        
-        if respawnWait >= 15 then
-            print("WARNING: Respawn taking too long, continuing anyway...")
+        if shelterValue == 0 then
+            teleportToCheckpoint(1)
+        elseif shelterValue == 1 then
+            teleportToCheckpoint(2)
+        elseif shelterValue == 2 then
+            teleportToCheckpoint(3)
+        elseif shelterValue == 3 then
+            teleportToCheckpoint(4)
+        elseif shelterValue == 4 then
+            teleportToFinalPosition()
         end
     end
-    print("=== SUMMIT LOOP ENDED ===")
 end
+
 
 -- == Infinity Jump ==
 UserInputService.JumpRequest:Connect(function()
@@ -1933,21 +1958,6 @@ AutoTab:CreateToggle({
     end
 })
 AutoTab:CreateButton({ Name = "Force Run Once", Callback = function() task.spawn(runRouteOnce) end })
-
--- Tween Speed Input
-AutoTab:CreateInput({
-    Name = "Tween Speed",
-    PlaceholderText = "e.g. 1",
-    Callback = function(val)
-        local n = tonumber(val)
-        if n and n > 0 then
-            state.TweenSpeed = n
-            Rayfield:Notify({Title = "Tween", Content = "Tween speed set to "..tostring(n), Duration = 2})
-        else
-            Rayfield:Notify({Title = "Tween", Content = "Input invalid", Duration = 2})
-        end
-    end
-})
 
 -- Manual TP Tab
 local ManualTab = Window:CreateTab("Manual TP", 4483362458)
